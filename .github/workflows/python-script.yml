@@ -41,6 +41,11 @@ jobs:
         run: |
           set -x
           python src/main.py
+          
+      - name: List Data Folder Contents
+        run: |
+          echo "Checking data folder contents..."
+          ls -la ./data
 
       - name: Upload CSV Files
         uses: actions/upload-artifact@v3
