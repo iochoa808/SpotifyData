@@ -3,8 +3,6 @@ import spotipy
 from dotenv import load_dotenv
 import os
 
-print("BEFORE LOADENV")
-
 load_dotenv()
 
 sp_oauth = SpotifyOAuth(
@@ -20,4 +18,3 @@ access_token = token_info["access_token"]
 
 sp = spotipy.Spotify(auth=access_token)
 
-print("SPOTIPY INITIATED")

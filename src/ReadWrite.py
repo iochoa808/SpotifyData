@@ -3,26 +3,10 @@ import os
 
 DATA = './data'
 
-"""def readTracks(filename, filePath=""):
-
-    columns = ["Datetime", "Title", "Artist", "Track_ID", "Spotify_Link", "ISRC"]
-
-    # Read the CSV file into a pandas DataFrame
-    df = pd.read_csv(filePath+filename, header=None, names=columns)
-
-    # Convert the "Datetime" column to datetime format
-    df["Datetime"] = pd.to_datetime(df["Datetime"], format="%B %d, %Y at %I:%M%p")
-
-    return df"""
-
-
-
 # Function to check if an instance exists in the CSV
 def instanceExists(file_path, unique_value, unique_attribute="id"):
     if not os.path.exists(file_path):
         return False  # File doesn't exist, so instance cannot exist
-
-    print("CHECK_EXISTS", file_path, unique_value)
 
     # Open the file with fallback encoding
     try:
@@ -47,8 +31,6 @@ def saveInstanceToCSV(instance, file_path, unique_attribute="id"):
     full_path = os.path.join(DATA, file_path)
     file_exists = os.path.exists(full_path)
 
-    print("FILE_EXSISTS: ", file_exists)
-
     # Check if the instance already exists
     if instanceExists(full_path, attributes[unique_attribute], unique_attribute):
         return None
@@ -63,5 +45,3 @@ def saveInstanceToCSV(instance, file_path, unique_attribute="id"):
 
         # Write the instance data
         writer.writerow(attributes)
-        print("WRITING: ", attributes)
-
