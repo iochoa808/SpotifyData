@@ -8,15 +8,16 @@ print("BEFORE LOADENV")
 
 load_dotenv()
 
-print(f"CLIENT_ID: {os.getenv('CLIENT_ID')}")
-print(f"CLIENT_SECRET: {os.getenv('CLIENT_SECRET')}")
-
-sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
+sp_oauth = SpotifyOAuth(
     client_id=os.getenv("CLIENT_ID"),
     client_secret=os.getenv("CLIENT_SECRET"),
     redirect_uri="http://localhost:8888/callback",
     scope="user-read-recently-played",
-    cache_handler=None  # Disable local caching
-))
+    cache_path="/tmp/spotify_cache"
+)
+
+access_token = sp_oauth.refresh_access_token(refresh_token=os.getenv('REFRESH_TOKEN'))["access_token"]
+
+sp = spotipy.Spotify(auth=access_token)
 
 print("SPOTIPY INITIATED")
