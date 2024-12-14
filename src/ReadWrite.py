@@ -1,7 +1,7 @@
 import csv
 import os
 
-DATA = os.path.join(os.path.dirname(__file__), '../data')
+DATA = './data'
 
 """def readTracks(filename, filePath=""):
 
