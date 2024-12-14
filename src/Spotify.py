@@ -1,9 +1,11 @@
 from spotipy.oauth2 import SpotifyOAuth
 import spotipy
-
+from dotenv import load_dotenv
 import os
 
 print("BEFORE LOADENV")
+
+load_dotenv()
 
 sp_oauth = SpotifyOAuth(
     client_id=os.environ["CLIENT_ID"],
