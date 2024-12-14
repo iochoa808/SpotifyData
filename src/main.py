@@ -19,5 +19,8 @@ def showTracks(tracks, i=0):
         except:
             print(f"{idx+1+i}: {track['name']} by {', '.join(artist['name'] for artist in track['artists'])}")
 
+print("MAIN")
 
 RecentlyPlayedSongs.saveRecentlyPlayedSongs()
+
+print("RECENTLYPLAYED EXECUTED")
