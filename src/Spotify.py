@@ -16,13 +16,7 @@ sp_oauth = SpotifyOAuth(
     cache_path="/tmp/spotify_cache"
 )
 
-access_token = sp_oauth.get_access_token()
-refresh_token = token["refresh_token"]
-
-print("ACCESS_TOKEN: ", access_token)
-print("REFERESH_TOKEN: ", refresh_token)
-
-#access_token = sp_oauth.refresh_access_token(refresh_token=os.getenv('REFRESH_TOKEN'))["access_token"]
+access_token = sp_oauth.refresh_access_token(refresh_token=os.getenv('REFRESH_TOKEN'))["access_token"]
 
 sp = spotipy.Spotify(auth=access_token)
 
