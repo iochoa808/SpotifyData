@@ -15,7 +15,8 @@ sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
     client_id=os.getenv("CLIENT_ID"),
     client_secret=os.getenv("CLIENT_SECRET"),
     redirect_uri="http://localhost:8888/callback",
-    scope="user-read-recently-played"
+    scope="user-read-recently-played",.
+    cache_handler=None  # Disable local caching
 ))
 
 print("SPOTIPY INITIATED")
