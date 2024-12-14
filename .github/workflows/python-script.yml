@@ -4,6 +4,9 @@ on:
     workflow_dispatch:
     schedule:
       - cron: "0 */2 * * *" # Runs every 2 hours
+      
+permissions:
+  contents: write  # Grants write access to the repository contents
 
 jobs:
   run-script:
