@@ -1,0 +1,2 @@
+spotipy==2.23.0  # Assuming the Spotify API wrapper used is Spotipy
+pandas==2.0.3    # For handling CSV files if applicable
