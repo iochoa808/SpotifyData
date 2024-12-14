@@ -2,7 +2,7 @@ import pandas as pd
 import csv
 import os
 
-DATA = ".\\data"
+DATA = os.path.join(os.path.dirname(__file__), '../data')
 
 def readTracks(filename, filePath=""):
 
