@@ -1,7 +1,8 @@
 from Spotify import sp
 from ReadWrite import *
 
-class Song():
+
+class Song:
 
     file_path = "songs.csv"
 

@@ -4,6 +4,7 @@ import spotipy
 from dotenv import load_dotenv
 import os
 
+load_dotenv()
 
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
     client_id=os.getenv("CLIENT_ID"),

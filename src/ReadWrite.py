@@ -1,10 +1,9 @@
-import pandas as pd
 import csv
 import os
 
 DATA = os.path.join(os.path.dirname(__file__), '../data')
 
-def readTracks(filename, filePath=""):
+"""def readTracks(filename, filePath=""):
 
     columns = ["Datetime", "Title", "Artist", "Track_ID", "Spotify_Link", "ISRC"]
 
@@ -14,7 +13,7 @@ def readTracks(filename, filePath=""):
     # Convert the "Datetime" column to datetime format
     df["Datetime"] = pd.to_datetime(df["Datetime"], format="%B %d, %Y at %I:%M%p")
 
-    return df
+    return df"""
 
 
 
