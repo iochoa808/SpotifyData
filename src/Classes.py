@@ -1,5 +1,6 @@
 from Spotify import sp
 from ReadWrite import *
+from utils import *
 
 
 class Song:
@@ -141,21 +142,20 @@ class PlayedSong():
         self.played_at = playedDict['played_at']
         self.track = playedDict['track']['id']
         self.context = {
-            'type': playedDict['context']['type'], 
+            'type': playedDict['context']['type'],
             'id': playedDict['context']['uri'].split(':')[2]
         }
-    
-        saveInstanceToCSV(Song(id=playedDict['track']['id']), Song.file_path)
-        saveInstanceToCSV(Album(id=playedDict['track']['album']['id']), Album.file_path)
-        [saveInstanceToCSV(Artist(id=artist['id']), Artist.file_path) for artist in playedDict['track']['artists']]
-        #if self.context['type'] == 'playlist': saveInstanceToCSV(Playlist(id=self.context['id']), Playlist.file_path)
-        
+
+        #saveInstanceToCSV(Song(id=playedDict['track']['id']), Song.file_path)
+        #saveInstanceToCSV(Album(id=playedDict['track']['album']['id']), Album.file_path)
+        #[saveInstanceToCSV(Artist(id=artist['id']), Artist.file_path) for artist in playedDict['track']['artists']]
+        # if self.context['type'] == 'playlist': saveInstanceToCSV(Playlist(id=self.context['id']), Playlist.file_path)
+
     def __str__(self):
         return f"[{self.played_at}] {self.track} played from the {self.context['type']} {self.context['uri']}"
 
 
 class RecentlyPlayedSongs():
-
     file_path = "recently_played.csv"
 
     def __init__(self):
@@ -163,4 +163,4 @@ class RecentlyPlayedSongs():
 
     def saveRecentlyPlayedSongs(self):
         [saveInstanceToCSV(song, RecentlyPlayedSongs.file_path, unique_attribute='played_at')
-        for song in [PlayedSong(song) for song in sp.current_user_recently_played(limit=50)['items'][::-1]]]
+         for song in [PlayedSong(song) for song in sp.current_user_recently_played(limit=50)['items'][::-1]]]
