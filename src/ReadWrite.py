@@ -22,6 +22,8 @@ def instanceExists(file_path, unique_value, unique_attribute="id"):
     if not os.path.exists(file_path):
         return False  # File doesn't exist, so instance cannot exist
 
+    print("CHECK_EXISTS", file_path, unique_value)
+
     # Open the file with fallback encoding
     try:
         with open(file_path, mode='r', newline='', encoding='utf-8') as file:
@@ -45,6 +47,8 @@ def saveInstanceToCSV(instance, file_path, unique_attribute="id"):
     full_path = os.path.join(DATA, file_path)
     file_exists = os.path.exists(full_path)
 
+    print("FILE_EXSISTS: ", file_exists)
+
     # Check if the instance already exists
     if instanceExists(full_path, attributes[unique_attribute], unique_attribute):
         return None
@@ -59,4 +63,5 @@ def saveInstanceToCSV(instance, file_path, unique_attribute="id"):
 
         # Write the instance data
         writer.writerow(attributes)
+        print("WRITING: ", attributes)
 
