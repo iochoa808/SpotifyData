@@ -148,7 +148,7 @@ class PlayedSong():
         saveInstanceToCSV(Song(id=playedDict['track']['id']), Song.file_path)
         saveInstanceToCSV(Album(id=playedDict['track']['album']['id']), Album.file_path)
         [saveInstanceToCSV(Artist(id=artist['id']), Artist.file_path) for artist in playedDict['track']['artists']]
-        if self.context['type'] == 'playlist': saveInstanceToCSV(Playlist(id=self.context['id']), Playlist.file_path)
+        #if self.context['type'] == 'playlist': saveInstanceToCSV(Playlist(id=self.context['id']), Playlist.file_path)
         
     def __str__(self):
         return f"[{self.played_at}] {self.track} played from the {self.context['type']} {self.context['uri']}"
@@ -161,6 +161,6 @@ class RecentlyPlayedSongs():
     def __init__(self):
         pass
 
-    def saveRecentlyPlayedSongs():
+    def saveRecentlyPlayedSongs(self):
         [saveInstanceToCSV(song, RecentlyPlayedSongs.file_path, unique_attribute='played_at')
         for song in [PlayedSong(song) for song in sp.current_user_recently_played(limit=50)['items']]]
