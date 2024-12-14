@@ -42,10 +42,15 @@ jobs:
           set -x
           python src/main.py
           
-      - name: List Data Folder Contents
+      - name: Commit and Push CSV Files
         run: |
-          echo "Checking data folder contents..."
-          ls -la ./data
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add ./data/*.csv
+          git commit -m "Update CSV files [skip ci]"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload CSV Files
         uses: actions/upload-artifact@v3
