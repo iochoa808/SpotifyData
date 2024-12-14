@@ -32,7 +32,7 @@ jobs:
         CLIENT_ID: ${{ secrets.CLIENT_ID }}  # GitHub Secret
         CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}  # GitHub Secret
       run: |
-        python src/script.py
+        python src/main.py
 
     # Step 5: Upload CSV files from the `data` directory as artifacts
     - name: Upload CSV Files
