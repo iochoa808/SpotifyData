@@ -163,4 +163,4 @@ class RecentlyPlayedSongs():
 
     def saveRecentlyPlayedSongs(self):
         [saveInstanceToCSV(song, RecentlyPlayedSongs.file_path, unique_attribute='played_at')
-        for song in [PlayedSong(song) for song in sp.current_user_recently_played(limit=50)['items']]]
+        for song in [PlayedSong(song) for song in sp.current_user_recently_played(limit=50)['items'][::-1]]]
