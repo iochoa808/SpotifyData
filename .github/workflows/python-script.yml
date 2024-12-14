@@ -28,7 +28,7 @@ jobs:
         env:
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-          SPOTIFY_REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+          REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
         run: |
           echo "CLIENT_ID: $CLIENT_ID"
           echo "CLIENT_SECRET: $CLIENT_SECRET"
@@ -37,7 +37,7 @@ jobs:
         env:
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-          SPOTIFY_REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+          REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
         run: |
           set -x
           python src/main.py
