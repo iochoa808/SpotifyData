@@ -1,20 +1,22 @@
-import time
-
 from Spotify import sp
 import ReadWrite as rw
-from utils import *
+import utils
 
 
 class Song:
-
     file_path = "songs.csv"
 
-    def __init__(self, id="", queryDict={}):
-        if len(queryDict) == 0 and len(id) == 0:
-            raise Exception("SONG NOT INITIATED PROPERLY")
-        if len(id) > 0:
-            queryDict = sp.track(id)
-    
+    def __init__(self, new_id="", queryDict=None):
+        # Initialize queryDict as an empty dictionary if not provided
+        if queryDict is None:
+            queryDict = {}
+        # Raise ValueError if neither are provided
+        if not new_id and not queryDict:
+            raise ValueError("SONG NOT INITIATED PROPERLY")
+        # If id is provided
+        if new_id:
+            queryDict = sp.track(new_id)
+
         self.id = queryDict['id']
         self.name = queryDict['name']
         self.explicit = queryDict['explicit']
@@ -32,27 +34,31 @@ class Song:
     def store(songDict):
         if not rw.instanceExists(Song.file_path, songDict['id']):
             rw.saveInstanceToCSV(Song(queryDict=songDict), Song.file_path)
-       
+
 
 class Album:
-
     file_path = "albums.csv"
 
-    def __init__(self, id="", queryDict={}):
-        if len(queryDict) == 0 and len(id) == 0:
-            raise Exception("ALBUM NOT INITIATED PROPERLY")
-        if len(id) > 0:
-            queryDict = sp.album(id)
+    def __init__(self, new_id="", queryDict=None):
+        # Initialize queryDict as an empty dictionary if not provided
+        if queryDict is None:
+            queryDict = {}
+        # Raise ValueError if neither are provided
+        if not new_id and not queryDict:
+            raise ValueError("ALBUM NOT INITIATED PROPERLY")
+        # If id is provided
+        if new_id:
+            queryDict = sp.album(new_id)
 
         self.id = queryDict['id']
         self.name = queryDict['name']
         self.total_tracks = queryDict['total_tracks']
         self.release_date = queryDict['release_date']
         self.artists = [artist['id'] for artist in queryDict['artists']]
-    
+
     def __str__(self):
         return f"{self.name} by {', '.join(artist for artist in self.artists)}"
-    
+
     def getSongs(self, ofst=0):
         if ofst > self.total_tracks:
             return []
@@ -60,9 +66,9 @@ class Album:
         new_tracks = [
             Song(queryDict=(track | {'album': {'id': self.id}}))
             for track in sp.album_tracks(self.id, limit=50, offset=ofst)['items']
-            ]
+        ]
 
-        return new_tracks + self.getSongs(ofst=ofst+50)
+        return new_tracks + self.getSongs(ofst=ofst + 50)
 
     @staticmethod
     def store(albumDict):
@@ -71,14 +77,18 @@ class Album:
 
 
 class Artist:
-
     file_path = "artists.csv"
 
-    def __init__(self, id="", queryDict={}):
-        if len(queryDict) == 0 and len(id) == 0:
-            raise Exception("ARTIST NOT INITIATED PROPERLY")
-        if len(id) > 0:
-            queryDict = sp.artist(id)
+    def __init__(self, new_id="", queryDict=None):
+        # Initialize queryDict as an empty dictionary if not provided
+        if queryDict is None:
+            queryDict = {}
+        # Raise ValueError if neither are provided
+        if not new_id and not queryDict:
+            raise ValueError("ARTIST NOT INITIATED PROPERLY")
+        # If id is provided
+        if new_id:
+            queryDict = sp.artist(new_id)
 
         self.id = queryDict['id']
         self.name = queryDict['name']
@@ -86,20 +96,20 @@ class Artist:
         self.genres = queryDict['genres']
         self.popularity = queryDict['popularity']
         self.total_albums = sp.artist_albums(self.id)['total']
-    
+
     def __str__(self):
         return self.name
-    
+
     def getAlbums(self, ofst=0):
         if ofst > self.total_albums:
             return []
         # Get items of the album
         new_albums = [
-            Album(queryDict=album) 
+            Album(queryDict=album)
             for album in sp.artist_albums(self.id, include_groups='album,single')['items']
-            ]
+        ]
 
-        return new_albums + self.getAlbums(ofst=ofst+20)
+        return new_albums + self.getAlbums(ofst=ofst + 20)
 
     @staticmethod
     def store(artistDict):
@@ -108,14 +118,18 @@ class Artist:
 
 
 class Playlist:
-
     file_path = "playlists.csv"
 
-    def __init__(self, id="", queryDict={}):
-        if len(queryDict) == 0 and len(id) == 0:
-            raise Exception("PLAYLIST NOT INITIATED PROPERLY")
-        if len(id) > 0:
-            queryDict = sp.playlist(id)
+    def __init__(self, new_id="", queryDict=None):
+        # Initialize queryDict as an empty dictionary if not provided
+        if queryDict is None:
+            queryDict = {}
+        # Raise ValueError if neither are provided
+        if not new_id and not queryDict:
+            raise ValueError("PLAYLIST NOT INITIATED PROPERLY")
+        # If id is provided
+        if new_id:
+            queryDict = sp.playlist(new_id)
 
         self.id = queryDict['id']
         self.name = queryDict['name']
@@ -123,10 +137,10 @@ class Playlist:
         self.followers = queryDict['followers']
         self.owner = queryDict['owner']['id']
         self.total_tracks = queryDict['tracks']['total']
-    
+
     def __str__(self):
         return f"{self.name} by {self.owner} with {self.total_tracks} songs"
-    
+
     def getSongs(self, ofst=0):
         if ofst > self.total_tracks:
             return []
@@ -134,9 +148,9 @@ class Playlist:
         new_tracks = [
             {'added_at': track['added_at'], 'track': Song(queryDict=track['track'])}
             for track in sp.playlist_items(self.id, limit=100, offset=ofst)['items']
-            ]
+        ]
 
-        return new_tracks + self.getSongs(ofst=ofst+100)
+        return new_tracks + self.getSongs(ofst=ofst + 100)
 
     @staticmethod
     def store(playlistDict):
@@ -145,22 +159,26 @@ class Playlist:
 
 
 class User:
-    def __init__(self, id="", queryDict={}):
-        if len(queryDict) == 0 and len(id) == 0:
-            raise Exception("USER NOT INITIATED PROPERLY")
-        if len(id) > 0:
-            queryDict = sp.track(id)
+    def __init__(self, new_id="", queryDict=None):
+        # Initialize queryDict as an empty dictionary if not provided
+        if queryDict is None:
+            queryDict = {}
+        # Raise ValueError if neither are provided
+        if not new_id and not queryDict:
+            raise ValueError("USER NOT INITIATED PROPERLY")
+        # If id is provided
+        if new_id:
+            queryDict = sp.user(id)
 
         self.id = queryDict['id']
         self.name = queryDict['display_name']
         self.followers = queryDict['followers']
-    
+
     def __str__(self):
         return self.name
 
 
 class PlayedSong:
-
     file_path = "recently_played.csv"
 
     def __init__(self, playedDict):
@@ -182,8 +200,6 @@ class PlayedSong:
 
 class RecentlyPlayedSongs:
 
-    file_path = "recently_played.csv"
-
     def __init__(self):
         pass
 
@@ -192,24 +208,19 @@ class RecentlyPlayedSongs:
         # Retrieve recently played songs
         recently_played = sp.current_user_recently_played(limit=50)['items'][::-1]
 
-        # TODO: PROVAR OUTPUT song_ids I SEGURAMENT ES POT POSAR EN UN SET
         song_ids = [item['track']['id'] for item in recently_played]
         album_ids = list({item['track']['album']['id'] for item in recently_played})
         artist_ids = list({artist['id'] for item in recently_played for artist in item['track']['artists']})
 
         print(f"song_ids: {len(song_ids)}\nalbum_ids: {len(album_ids)}\nartist_ids: {len(artist_ids)}")
 
-        # TODO: PROVAR ABANS SI FUNCIONA UN DELS LST COMPREHESION
-        # TODO: SENSE VARIABLE SEMBLA QUE NO TÈ EFECTE?¿
-        # Batch fetch songs, albums, and artists
-        song_cache = {Song.store(song) for batch_ids in batch(song_ids, 50)
-                      for song in sp.tracks(batch_ids)['tracks']}
-        album_cache = {Album.store(album) for batch_ids in batch(album_ids, 20)
-                       for album in sp.albums(batch_ids)['albums']}
-        # TODO: CREC QUE ARTISTS VA EN LLISTES, PROVAR COM ÉS L'OUTPUT
-        artist_cache = {Artist.store(artist) for batch_ids in batch(artist_ids, 50)
-                        for artist in sp.artists(batch_ids)['artists']}
-
+        # Batch fetch and store songs, albums, and artists
+        [Song.store(song) for batch_ids in utils.batch(song_ids, 50)
+         for song in sp.tracks(batch_ids)['tracks']]
+        [Album.store(album) for batch_ids in utils.batch(album_ids, 20)
+         for album in sp.albums(batch_ids)['albums']]
+        [Artist.store(artist) for batch_ids in utils.batch(artist_ids, 50)
+         for artist in sp.artists(batch_ids)['artists']]
         [PlayedSong.store(item) for item in recently_played]
 
 

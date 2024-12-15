@@ -1,18 +1,8 @@
 import csv
 import os
+import utils
 
-#DATA = '..\data'
-
-def get_data_path():
-    if os.getenv('GITHUB_ACTIONS') == 'true':
-        # Running in GitHub Actions
-        return './data'
-    else:
-        # Running locally
-        return os.path.join(os.path.dirname(__file__), '..', 'data')
-
-
-DATA = get_data_path()
+DATA = utils.get_data_path()
 
 
 # Function to check if an instance exists in the CSV
