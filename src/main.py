@@ -1,4 +1,4 @@
 from Classes import *
 
 
-RecentlyPlayedSongs.saveRecentlyPlayedSongs()
+recentlyPlayedSongs = RecentlyPlayedSongs.saveRecentlyPlayedSongs()

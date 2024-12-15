@@ -44,3 +44,5 @@ def saveInstanceToCSV(instance, file_path):
 
         # Write the instance data
         writer.writerow(attributes)
+
+    return instance

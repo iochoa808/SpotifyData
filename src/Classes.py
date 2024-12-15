@@ -33,7 +33,7 @@ class Song:
     @staticmethod
     def store(songDict):
         if not rw.instanceExists(Song.file_path, songDict['id']):
-            rw.saveInstanceToCSV(Song(queryDict=songDict), Song.file_path)
+            return rw.saveInstanceToCSV(Song(queryDict=songDict), Song.file_path)
 
 
 class Album:
@@ -73,7 +73,7 @@ class Album:
     @staticmethod
     def store(albumDict):
         if not rw.instanceExists(Album.file_path, albumDict['id']):
-            rw.saveInstanceToCSV(Album(queryDict=albumDict), Album.file_path)
+            return rw.saveInstanceToCSV(Album(queryDict=albumDict), Album.file_path)
 
 
 class Artist:
@@ -114,7 +114,7 @@ class Artist:
     @staticmethod
     def store(artistDict):
         if not rw.instanceExists(Artist.file_path, artistDict['id']):
-            rw.saveInstanceToCSV(Artist(queryDict=artistDict), Artist.file_path)
+            return rw.saveInstanceToCSV(Artist(queryDict=artistDict), Artist.file_path)
 
 
 class Playlist:
@@ -155,7 +155,7 @@ class Playlist:
     @staticmethod
     def store(playlistDict):
         if not rw.instanceExists(Playlist.file_path, playlistDict['id']):
-            rw.saveInstanceToCSV(Playlist(queryDict=playlistDict), Playlist.file_path)
+            return rw.saveInstanceToCSV(Playlist(queryDict=playlistDict), Playlist.file_path)
 
 
 class User:
@@ -195,7 +195,7 @@ class PlayedSong:
     @staticmethod
     def store(playedSongDict):
         if not rw.instanceExists(PlayedSong.file_path, playedSongDict['played_at'], unique_attribute='played_at'):
-            rw.saveInstanceToCSV(PlayedSong(playedDict=playedSongDict), PlayedSong.file_path)
+            return rw.saveInstanceToCSV(PlayedSong(playedDict=playedSongDict), PlayedSong.file_path)
 
 
 class RecentlyPlayedSongs:
@@ -208,6 +208,7 @@ class RecentlyPlayedSongs:
         # Retrieve recently played songs
         recently_played = sp.current_user_recently_played(limit=50)['items'][::-1]
 
+        # Collect sets of all IDs for fetching
         song_ids = list({item['track']['id'] for item in recently_played})
         album_ids = list({item['track']['album']['id'] for item in recently_played})
         artist_ids = list({artist['id'] for item in recently_played for artist in item['track']['artists']})
@@ -224,4 +225,4 @@ class RecentlyPlayedSongs:
          for artist in sp.artists(batch_ids)['artists']]
 
         [Playlist.store(sp.playlist(playlist)) for playlist in playlist_ids]
-        [PlayedSong.store(item) for item in recently_played]
+        return [PlayedSong.store(item) for item in recently_played]
