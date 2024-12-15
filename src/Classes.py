@@ -208,11 +208,12 @@ class RecentlyPlayedSongs:
         # Retrieve recently played songs
         recently_played = sp.current_user_recently_played(limit=50)['items'][::-1]
 
-        song_ids = [item['track']['id'] for item in recently_played]
+        song_ids = list({item['track']['id'] for item in recently_played})
         album_ids = list({item['track']['album']['id'] for item in recently_played})
         artist_ids = list({artist['id'] for item in recently_played for artist in item['track']['artists']})
-
-        print(f"song_ids: {len(song_ids)}\nalbum_ids: {len(album_ids)}\nartist_ids: {len(artist_ids)}")
+        playlist_ids = list({item['context']['uri'].split(':')[2] for item in recently_played
+                             if item['context']['type'] == 'playlist' and
+                             not item['context']['uri'].split(':')[2].startswith("37i9dQZF1E")})
 
         # Batch fetch and store songs, albums, and artists
         [Song.store(song) for batch_ids in utils.batch(song_ids, 50)
@@ -221,70 +222,6 @@ class RecentlyPlayedSongs:
          for album in sp.albums(batch_ids)['albums']]
         [Artist.store(artist) for batch_ids in utils.batch(artist_ids, 50)
          for artist in sp.artists(batch_ids)['artists']]
+
+        [Playlist.store(sp.playlist(playlist)) for playlist in playlist_ids]
         [PlayedSong.store(item) for item in recently_played]
-
-
-# TODO: GPT
-"""
-from itertools import islice
-
-# Utility function to split a list into batches
-def batch(iterable, n=20):
-    it = iter(iterable)
-    while batch := list(islice(it, n)):
-        yield batch
-
-class PlayedSong:
-    def __init__(self, playedDict, song_cache, album_cache, artist_cache):
-        self.played_at = playedDict['played_at']
-        self.track = playedDict['track']['id']
-        self.context = {
-            'type': playedDict['context']['type'], 
-            'id': playedDict['context']['uri'].split(':')[2] if playedDict['context'] and 'uri' in playedDict['context'] else None
-        }
-        
-        # Save song using cached data
-        if self.track in song_cache:
-            saveInstanceToCSV(Song(song_cache[self.track]), Song.file_path)
-        
-        # Save album using cached data
-        album_id = playedDict['track']['album']['id']
-        if album_id in album_cache:
-            saveInstanceToCSV(Album(album_cache[album_id]), Album.file_path)
-
-        # Save artists using cached data
-        for artist in playedDict['track']['artists']:
-            artist_id = artist['id']
-            if artist_id in artist_cache:
-                saveInstanceToCSV(Artist(artist_cache[artist_id]), Artist.file_path)
-
-    def __str__(self):
-        return f"[{self.played_at}] {self.track} played from the {self.context['type']} {self.context['id']}"
-
-
-class RecentlyPlayedSongs:
-    file_path = "recently_played.csv"
-
-    def __init__(self):
-        pass
-
-    def saveRecentlyPlayedSongs(self):
-        # Retrieve recently played songs
-        recently_played = sp.current_user_recently_played(limit=50)['items'][::-1]
-
-        # Collect all IDs for batching
-        song_ids = [item['track']['id'] for item in recently_played]
-        album_ids = list({item['track']['album']['id'] for item in recently_played})
-        artist_ids = list({artist['id'] for item in recently_played for artist in item['track']['artists']})
-
-        # Batch fetch songs, albums, and artists
-        song_cache = {song['id']: song for batch_ids in batch(song_ids, 50) for song in sp.tracks(batch_ids)['tracks']}
-        album_cache = {album['id']: album for batch_ids in batch(album_ids, 20) for album in sp.albums(batch_ids)['albums']}
-        artist_cache = {artist['id']: artist for batch_ids in batch(artist_ids, 50) for artist in sp.artists(batch_ids)['artists']}
-
-        # Save each played song
-        for item in recently_played:
-            song_instance = PlayedSong(item, song_cache, album_cache, artist_cache)
-            saveInstanceToCSV(song_instance, RecentlyPlayedSongs.file_path, unique_attribute='played_at')
-
-"""
