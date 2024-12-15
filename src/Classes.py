@@ -1,5 +1,7 @@
+import time
+
 from Spotify import sp
-from ReadWrite import *
+import ReadWrite as rw
 from utils import *
 
 
@@ -25,9 +27,14 @@ class Song:
 
     def __str__(self):
         return f"{self.name} by {', '.join(artist for artist in self.artists)}"
+
+    @staticmethod
+    def store(songDict):
+        if not rw.instanceExists(Song.file_path, songDict['id']):
+            rw.saveInstanceToCSV(Song(queryDict=songDict), Song.file_path)
        
 
-class Album():
+class Album:
 
     file_path = "albums.csv"
 
@@ -57,8 +64,13 @@ class Album():
 
         return new_tracks + self.getSongs(ofst=ofst+50)
 
+    @staticmethod
+    def store(albumDict):
+        if not rw.instanceExists(Album.file_path, albumDict['id']):
+            rw.saveInstanceToCSV(Album(queryDict=albumDict), Album.file_path)
 
-class Artist():
+
+class Artist:
 
     file_path = "artists.csv"
 
@@ -89,8 +101,13 @@ class Artist():
 
         return new_albums + self.getAlbums(ofst=ofst+20)
 
+    @staticmethod
+    def store(artistDict):
+        if not rw.instanceExists(Artist.file_path, artistDict['id']):
+            rw.saveInstanceToCSV(Artist(queryDict=artistDict), Artist.file_path)
 
-class Playlist():
+
+class Playlist:
 
     file_path = "playlists.csv"
 
@@ -121,8 +138,13 @@ class Playlist():
 
         return new_tracks + self.getSongs(ofst=ofst+100)
 
+    @staticmethod
+    def store(playlistDict):
+        if not rw.instanceExists(Playlist.file_path, playlistDict['id']):
+            rw.saveInstanceToCSV(Playlist(queryDict=playlistDict), Playlist.file_path)
 
-class User():
+
+class User:
     def __init__(self, id="", queryDict={}):
         if len(queryDict) == 0 and len(id) == 0:
             raise Exception("USER NOT INITIATED PROPERLY")
@@ -137,7 +159,10 @@ class User():
         return self.name
 
 
-class PlayedSong():
+class PlayedSong:
+
+    file_path = "recently_played.csv"
+
     def __init__(self, playedDict):
         self.played_at = playedDict['played_at']
         self.track = playedDict['track']['id']
@@ -146,21 +171,109 @@ class PlayedSong():
             'id': playedDict['context']['uri'].split(':')[2]
         }
 
-        #saveInstanceToCSV(Song(id=playedDict['track']['id']), Song.file_path)
-        #saveInstanceToCSV(Album(id=playedDict['track']['album']['id']), Album.file_path)
-        #[saveInstanceToCSV(Artist(id=artist['id']), Artist.file_path) for artist in playedDict['track']['artists']]
-        # if self.context['type'] == 'playlist': saveInstanceToCSV(Playlist(id=self.context['id']), Playlist.file_path)
-
     def __str__(self):
         return f"[{self.played_at}] {self.track} played from the {self.context['type']} {self.context['uri']}"
 
+    @staticmethod
+    def store(playedSongDict):
+        if not rw.instanceExists(PlayedSong.file_path, playedSongDict['played_at'], unique_attribute='played_at'):
+            rw.saveInstanceToCSV(PlayedSong(playedDict=playedSongDict), PlayedSong.file_path)
 
-class RecentlyPlayedSongs():
+
+class RecentlyPlayedSongs:
+
+    file_path = "recently_played.csv"
+
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def saveRecentlyPlayedSongs():
+        # Retrieve recently played songs
+        recently_played = sp.current_user_recently_played(limit=50)['items'][::-1]
+
+        # TODO: PROVAR OUTPUT song_ids I SEGURAMENT ES POT POSAR EN UN SET
+        song_ids = [item['track']['id'] for item in recently_played]
+        album_ids = list({item['track']['album']['id'] for item in recently_played})
+        artist_ids = list({artist['id'] for item in recently_played for artist in item['track']['artists']})
+
+        print(f"song_ids: {len(song_ids)}\nalbum_ids: {len(album_ids)}\nartist_ids: {len(artist_ids)}")
+
+        # TODO: PROVAR ABANS SI FUNCIONA UN DELS LST COMPREHESION
+        # TODO: SENSE VARIABLE SEMBLA QUE NO TÈ EFECTE?¿
+        # Batch fetch songs, albums, and artists
+        song_cache = {Song.store(song) for batch_ids in batch(song_ids, 50)
+                      for song in sp.tracks(batch_ids)['tracks']}
+        album_cache = {Album.store(album) for batch_ids in batch(album_ids, 20)
+                       for album in sp.albums(batch_ids)['albums']}
+        # TODO: CREC QUE ARTISTS VA EN LLISTES, PROVAR COM ÉS L'OUTPUT
+        artist_cache = {Artist.store(artist) for batch_ids in batch(artist_ids, 50)
+                        for artist in sp.artists(batch_ids)['artists']}
+
+        [PlayedSong.store(item) for item in recently_played]
+
+
+# TODO: GPT
+"""
+from itertools import islice
+
+# Utility function to split a list into batches
+def batch(iterable, n=20):
+    it = iter(iterable)
+    while batch := list(islice(it, n)):
+        yield batch
+
+class PlayedSong:
+    def __init__(self, playedDict, song_cache, album_cache, artist_cache):
+        self.played_at = playedDict['played_at']
+        self.track = playedDict['track']['id']
+        self.context = {
+            'type': playedDict['context']['type'], 
+            'id': playedDict['context']['uri'].split(':')[2] if playedDict['context'] and 'uri' in playedDict['context'] else None
+        }
+        
+        # Save song using cached data
+        if self.track in song_cache:
+            saveInstanceToCSV(Song(song_cache[self.track]), Song.file_path)
+        
+        # Save album using cached data
+        album_id = playedDict['track']['album']['id']
+        if album_id in album_cache:
+            saveInstanceToCSV(Album(album_cache[album_id]), Album.file_path)
+
+        # Save artists using cached data
+        for artist in playedDict['track']['artists']:
+            artist_id = artist['id']
+            if artist_id in artist_cache:
+                saveInstanceToCSV(Artist(artist_cache[artist_id]), Artist.file_path)
+
+    def __str__(self):
+        return f"[{self.played_at}] {self.track} played from the {self.context['type']} {self.context['id']}"
+
+
+class RecentlyPlayedSongs:
     file_path = "recently_played.csv"
 
     def __init__(self):
         pass
 
     def saveRecentlyPlayedSongs(self):
-        [saveInstanceToCSV(song, RecentlyPlayedSongs.file_path, unique_attribute='played_at')
-         for song in [PlayedSong(song) for song in sp.current_user_recently_played(limit=50)['items'][::-1]]]
+        # Retrieve recently played songs
+        recently_played = sp.current_user_recently_played(limit=50)['items'][::-1]
+
+        # Collect all IDs for batching
+        song_ids = [item['track']['id'] for item in recently_played]
+        album_ids = list({item['track']['album']['id'] for item in recently_played})
+        artist_ids = list({artist['id'] for item in recently_played for artist in item['track']['artists']})
+
+        # Batch fetch songs, albums, and artists
+        song_cache = {song['id']: song for batch_ids in batch(song_ids, 50) for song in sp.tracks(batch_ids)['tracks']}
+        album_cache = {album['id']: album for batch_ids in batch(album_ids, 20) for album in sp.albums(batch_ids)['albums']}
+        artist_cache = {artist['id']: artist for batch_ids in batch(artist_ids, 50) for artist in sp.artists(batch_ids)['artists']}
+
+        # Save each played song
+        for item in recently_played:
+            song_instance = PlayedSong(item, song_cache, album_cache, artist_cache)
+            saveInstanceToCSV(song_instance, RecentlyPlayedSongs.file_path, unique_attribute='played_at')
+
+"""

@@ -11,24 +11,26 @@ def get_data_path():
         # Running locally
         return os.path.join(os.path.dirname(__file__), '..', 'data')
 
+
 DATA = get_data_path()
 
 
 # Function to check if an instance exists in the CSV
 def instanceExists(file_path, unique_value, unique_attribute="id"):
-    if not os.path.exists(file_path):
+    full_path = os.path.join(DATA, file_path)
+    if not os.path.exists(full_path):
         return False  # File doesn't exist, so instance cannot exist
 
     # Open the file with fallback encoding
     try:
-        with open(file_path, mode='r', newline='', encoding='utf-8') as file:
+        with open(full_path, mode='r', newline='', encoding='utf-8') as file:
             reader = csv.DictReader(file)
             for row in reader:
                 if row[unique_attribute] == unique_value:
                     return True
     except UnicodeDecodeError:
         # Fallback to a more forgiving encoding
-        with open(file_path, mode='r', newline='', encoding='windows-1252') as file:
+        with open(full_path, mode='r', newline='', encoding='windows-1252') as file:
             reader = csv.DictReader(file)
             for row in reader:
                 if row[unique_attribute] == unique_value:
@@ -37,14 +39,10 @@ def instanceExists(file_path, unique_value, unique_attribute="id"):
     return False
 
 
-def saveInstanceToCSV(instance, file_path, unique_attribute="id"):
+def saveInstanceToCSV(instance, file_path):
     attributes = vars(instance)
     full_path = os.path.join(DATA, file_path)
     file_exists = os.path.exists(full_path)
-
-    # Check if the instance already exists
-    if instanceExists(full_path, attributes[unique_attribute], unique_attribute):
-        return None
 
     # Write to CSV with UTF-8 encoding
     with open(full_path, mode='a', newline='', encoding='utf-8') as file:
