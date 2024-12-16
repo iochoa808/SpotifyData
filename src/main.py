@@ -3,4 +3,4 @@ from Classes import *
 
 recentlyPlayedSongs = RecentlyPlayedSongs.saveRecentlyPlayedSongs()
 
-[print(song) for song in recentlyPlayedSongs]
+[print(i, song) for i, song in enumerate(recentlyPlayedSongs)]
