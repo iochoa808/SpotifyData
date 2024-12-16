@@ -45,11 +45,18 @@ jobs:
           set -x
           python src/main.py
           
+      - name: Check for Changes
+        run: |
+          git add ./data/*.csv
+          if git diff --cached --quiet; then
+            echo "No changes detected. Exiting workflow."
+            exit 0
+          fi
+        
       - name: Commit and Push CSV Files
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add ./data/*.csv
           git commit -m "Updated CSV files"
           git push
         env:
