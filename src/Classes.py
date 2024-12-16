@@ -33,7 +33,9 @@ class Song:
     @staticmethod
     def store(songDict):
         if not rw.instanceExists(Song.file_path, songDict['id']):
-            return rw.saveInstanceToCSV(Song(queryDict=songDict), Song.file_path)
+            new_song = Song(queryDict=songDict)
+            rw.saveInstanceToCSV(new_song, Song.file_path)
+            return new_song
 
 
 class Album:
@@ -73,7 +75,9 @@ class Album:
     @staticmethod
     def store(albumDict):
         if not rw.instanceExists(Album.file_path, albumDict['id']):
-            return rw.saveInstanceToCSV(Album(queryDict=albumDict), Album.file_path)
+            new_album = Album(queryDict=albumDict)
+            rw.saveInstanceToCSV(new_album, Album.file_path)
+            return new_album
 
 
 class Artist:
@@ -114,7 +118,9 @@ class Artist:
     @staticmethod
     def store(artistDict):
         if not rw.instanceExists(Artist.file_path, artistDict['id']):
-            return rw.saveInstanceToCSV(Artist(queryDict=artistDict), Artist.file_path)
+            new_artist = Artist(queryDict=artistDict)
+            rw.saveInstanceToCSV(new_artist, Artist.file_path)
+            return new_artist
 
 
 class Playlist:
@@ -155,7 +161,9 @@ class Playlist:
     @staticmethod
     def store(playlistDict):
         if not rw.instanceExists(Playlist.file_path, playlistDict['id']):
-            return rw.saveInstanceToCSV(Playlist(queryDict=playlistDict), Playlist.file_path)
+            new_Playlist = Playlist(queryDict=playlistDict)
+            rw.saveInstanceToCSV(new_Playlist, Playlist.file_path)
+            return new_Playlist
 
 
 class User:
@@ -190,12 +198,14 @@ class PlayedSong:
         }
 
     def __str__(self):
-        return f"[{self.played_at}] {self.track} played from the {self.context['type']} {self.context['uri']}"
+        return f"[{self.played_at}] {self.track} played from the {self.context['type']} {self.context['id']}"
 
     @staticmethod
     def store(playedSongDict):
         if not rw.instanceExists(PlayedSong.file_path, playedSongDict['played_at'], unique_attribute='played_at'):
-            return rw.saveInstanceToCSV(PlayedSong(playedDict=playedSongDict), PlayedSong.file_path)
+            new_playedSong = PlayedSong(playedDict=playedSongDict)
+            rw.saveInstanceToCSV(new_playedSong, PlayedSong.file_path)
+            return new_playedSong
 
 
 class RecentlyPlayedSongs:
@@ -223,6 +233,7 @@ class RecentlyPlayedSongs:
          for album in sp.albums(batch_ids)['albums']]
         [Artist.store(artist) for batch_ids in utils.batch(artist_ids, 50)
          for artist in sp.artists(batch_ids)['artists']]
-
         [Playlist.store(sp.playlist(playlist)) for playlist in playlist_ids]
-        return [PlayedSong.store(item) for item in recently_played]
+
+        # Return the new playedSongs
+        return [song for song in (PlayedSong.store(item) for item in recently_played) if song is not None]
