@@ -1,24 +1,55 @@
 from Spotify import sp
 import ReadWrite as rw
 import utils
+from abc import ABC, abstractmethod
 
 
-class Song:
-    file_path = "songs.csv"
+class SpotifyObject(ABC):
+    storing_path = None
 
-    def __init__(self, new_id="", queryDict=None):
-        # Initialize queryDict as an empty dictionary if not provided
-        if queryDict is None:
-            queryDict = {}
-        # Raise ValueError if neither are provided
-        if not new_id and not queryDict:
-            raise ValueError("SONG NOT INITIATED PROPERLY")
-        # If id is provided
-        if new_id:
-            queryDict = sp.track(new_id)
+    def __init__(self, queryDict=None, new_id=""):
+        # Use queryDict if provided, otherwise get data with new_id
+        if queryDict is None and not new_id:
+            raise ValueError(f"{self.__class__.__name__} requires either 'queryDict' or 'new_id' to initialize.")
+
+        # Use queryDict if provided, otherwise fetch data using new_id
+        self.queryDict = queryDict if queryDict else self.getFromId(new_id)
 
         self.id = queryDict['id']
         self.name = queryDict['name']
+        self.getInfoFromQuery(self.queryDict)
+
+    @abstractmethod
+    def getFromId(self, new_id):
+        # Abstract method to fetch data using new_id. Subclasses must implement this method.
+        pass
+
+    @abstractmethod
+    def getInfoFromQuery(self, queryDict):
+        # Subclasses must implement this to extract specific fields from queryDict.
+        pass
+
+    @classmethod
+    def store(cls, objDict):
+        # Checking if cls.storing_path has been declared
+        if cls.storing_path is None:
+            raise ValueError(f"{cls.__name__} must define a 'storing_path'.")
+
+        if not rw.instanceExists(cls.storing_path, objDict['id']):
+            new_instance = cls(queryDict=objDict)  # Dynamically call the subclass constructor
+            rw.saveInstanceToCSV(new_instance, cls.storing_path)
+            return new_instance
+        return None
+
+
+class Song(SpotifyObject):
+
+    storing_path = "songs.csv"
+
+    def __str__(self):
+        return f"{self.name} by {', '.join(artist for artist in self.artists)}"
+
+    def getInfoFromQuery(self, queryDict):
         self.explicit = queryDict['explicit']
         self.duration_ms = queryDict['duration_ms']
         self.popularity = queryDict['popularity']
@@ -27,15 +58,8 @@ class Song:
         self.track_number = queryDict['track_number']
         self.isrc = queryDict['external_ids']['isrc']
 
-    def __str__(self):
-        return f"{self.name} by {', '.join(artist for artist in self.artists)}"
-
-    @staticmethod
-    def store(songDict):
-        if not rw.instanceExists(Song.file_path, songDict['id']):
-            new_song = Song(queryDict=songDict)
-            rw.saveInstanceToCSV(new_song, Song.file_path)
-            return new_song
+    def getFromId(self, new_id):
+        return sp.track(new_id)
 
 
 class Album:
