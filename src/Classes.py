@@ -7,6 +7,8 @@ from abc import ABC, abstractmethod
 # Abstract class
 class SpotifyObject(ABC):
     storing_path = None
+    unique_attribute = 'id'
+    name_attribute = 'name'
 
     def __init__(self, queryDict=None, new_id=""):
         # Use queryDict if provided, otherwise get data with new_id
@@ -17,28 +19,27 @@ class SpotifyObject(ABC):
         self.queryDict = queryDict if queryDict else self.getFromId(new_id)
 
         # id for most, played_at for recentlyPlayed
-        self.id = queryDict.get('id') or queryDict.get('played_at')
+        self.id = queryDict.get(self.__class__.unique_attribute)
         if not self.id:
-            raise ValueError(f"Neither 'id' nor 'played_at' found in queryDict: {queryDict}")
+            raise ValueError(f"No unique attribute has been found in {self.__class__}")
 
         # name for most, display_name for user
-        self.name = queryDict.get('name') or queryDict.get('display_name')
+        self.name = queryDict.get(self.__class__.name_attribute)
         if not self.name:
-            raise ValueError(f"Neither 'id' nor 'played_at' found in queryDict: {queryDict}")
+            raise ValueError(f"No name attribute has been found in {self.__class__}")
 
     @abstractmethod
     def getFromId(self, new_id):
         # Abstract method to fetch data using new_id. Subclasses must implement this method.
         pass
 
-# TODO: DEFINIR DIFERENTS CAMPS SEGONS ID (PLAYED_SONG)
     @classmethod
     def store(cls, objDict):
         # Checking if cls.storing_path has been declared
         if cls.storing_path is None:
             raise ValueError(f"{cls.__name__} must define a 'storing_path'.")
 
-        if not rw.instanceExists(cls.storing_path, objDict['id']):
+        if not rw.instanceExists(cls.storing_path, unique_value=objDict.get(cls.unique_attribute), unique_attribute=cls.unique_attribute):
             new_instance = cls(queryDict=objDict)  # Dynamically call the subclass constructor
             rw.saveInstanceToCSV(new_instance, cls.storing_path)
             return new_instance
@@ -167,6 +168,7 @@ class Playlist(SpotifyObject):
 class User(SpotifyObject):
 
     storing_path = "users.csv"
+    name_attribute = 'display_name'
 
     def __init__(self, queryDict=None, new_id=""):
         super().__init__(queryDict=queryDict, new_id=new_id)
@@ -182,27 +184,27 @@ class User(SpotifyObject):
         return sp.user(new_id)
 
 
-# TODO: FER SUBCLASSE DE SPOTIFY OBJECT
-class PlayedSong:
-    file_path = "recently_played.csv"
+class PlayedSong(SpotifyObject):
+    storing_path = "recently_played.csv"
+    unique_attribute = 'played_at'
 
-    def __init__(self, playedDict):
-        self.played_at = playedDict['played_at']
-        self.track = playedDict['track']['id']
+    def __init__(self, queryDict):
+        super().__init__(queryDict=queryDict)
+
+        self.played_at = queryDict['played_at']
+        self.track = queryDict['track']['id']
         self.context = {
-            'type': playedDict['context']['type'],
-            'id': playedDict['context']['uri'].split(':')[2]
+            'type': queryDict['context']['type'],
+            'id': queryDict['context']['uri'].split(':')[2]
         }
+
+        del self.queryDict
 
     def __str__(self):
         return f"[{self.played_at}] {self.track} played from the {self.context['type']} {self.context['id']}"
 
-    @staticmethod
-    def store(playedSongDict):
-        if not rw.instanceExists(PlayedSong.file_path, playedSongDict['played_at'], unique_attribute='played_at'):
-            new_playedSong = PlayedSong(playedDict=playedSongDict)
-            rw.saveInstanceToCSV(new_playedSong, PlayedSong.file_path)
-            return new_playedSong
+    def getFromId(self, new_id):
+        return None
 
 
 class RecentlyPlayedSongs:
