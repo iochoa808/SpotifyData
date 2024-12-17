@@ -133,8 +133,8 @@ class Artist(SpotifyObject):
 
 
 class Playlist(SpotifyObject):
-
     storing_path = "playlists.csv"
+    likedSongs = '0000000000000000000000'
 
     def __init__(self, queryDict=None, new_id=""):
         super().__init__(queryDict=queryDict, new_id=new_id)
@@ -215,12 +215,19 @@ class RecentlyPlayedSongs:
         # Retrieve recently played songs
         recently_played = sp.current_user_recently_played(limit=50)['items'][::-1]
 
+        # Tractar si context no existeix (Liked songs)
+        recently_played = [
+            {**song, 'context': {'type': 'playlist', 'uri': f"::{Playlist.likedSongs}"}}
+            if not song['context'] else song
+            for song in recently_played
+        ]
+
         # Collect sets of all IDs for fetching
         song_ids = list({item['track']['id'] for item in recently_played})
         album_ids = list({item['track']['album']['id'] for item in recently_played})
         artist_ids = list({artist['id'] for item in recently_played for artist in item['track']['artists']})
         playlist_ids = list({item['context']['uri'].split(':')[2] for item in recently_played
-                             if item['context']['type'] == 'playlist' and
+                             if item['context']['uri'] != Playlist.likedSongs and item['context']['type'] == 'playlist' and
                              not item['context']['uri'].split(':')[2].startswith("37i9dQZF1E")})
 
         # Batch fetch and store songs, albums, and artists
@@ -230,7 +237,8 @@ class RecentlyPlayedSongs:
          for album in sp.albums(batch_ids)['albums']]
         [Artist.store(artist) for batch_ids in utils.batch(artist_ids, 50)
          for artist in sp.artists(batch_ids)['artists']]
-        [Playlist.store(sp.playlist(playlist)) for playlist in playlist_ids]
+        [Playlist.store(sp.playlist(playlist))
+         for playlist in playlist_ids if playlist != Playlist.likedSongs]
 
         # Return the new playedSongs
         return [song for song in (PlayedSong.store(item) for item in recently_played) if song is not None]
