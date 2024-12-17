@@ -2,6 +2,7 @@ from Spotify import sp
 import ReadWrite as rw
 import utils
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 
 # Abstract class
@@ -26,7 +27,7 @@ class SpotifyObject(ABC):
         # name for most, display_name for user
         self.name = queryDict.get(self.__class__.name_attribute)
         if not self.name:
-            raise ValueError(f"No name attribute has been found in {self.__class__}")
+            del self.name
 
     @abstractmethod
     def getFromId(self, new_id):
@@ -187,11 +188,11 @@ class User(SpotifyObject):
 class PlayedSong(SpotifyObject):
     storing_path = "recently_played.csv"
     unique_attribute = 'played_at'
+    name_attribute = None
 
     def __init__(self, queryDict):
         super().__init__(queryDict=queryDict)
 
-        self.played_at = queryDict['played_at']
         self.track = queryDict['track']['id']
         self.context = {
             'type': queryDict['context']['type'],
@@ -201,10 +202,13 @@ class PlayedSong(SpotifyObject):
         del self.queryDict
 
     def __str__(self):
-        return f"[{self.played_at}] {self.track} played from the {self.context['type']} {self.context['id']}"
+        return f"[{self.id}] {self.track} played from the {self.context['type']} {self.context['id']}"
 
     def getFromId(self, new_id):
         return None
+
+    def playedAt(self):
+        return datetime.fromtimestamp(self.id)
 
 
 class RecentlyPlayedSongs:
@@ -222,6 +226,11 @@ class RecentlyPlayedSongs:
             {**song, 'context': {'type': 'playlist', 'uri': f"::{Playlist.likedSongs}"}}
             if not song['context'] else song
             for song in recently_played
+        ]
+        # Convertir played_at a format datetime
+        recently_played = [
+            {**item, 'played_at': utils.getTimestamp(item['played_at'])}
+            for item in recently_played
         ]
 
         # Collect sets of all IDs for fetching
