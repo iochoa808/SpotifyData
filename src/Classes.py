@@ -2,7 +2,7 @@ from Spotify import sp
 import ReadWrite as rw
 import utils
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 # Abstract class
@@ -40,7 +40,7 @@ class SpotifyObject(ABC):
         if cls.storing_path is None:
             raise ValueError(f"{cls.__name__} must define a 'storing_path'.")
 
-        if not rw.instanceExists(cls.storing_path, unique_value=objDict.get(cls.unique_attribute), unique_attribute=cls.unique_attribute):
+        if not rw.instanceExists(cls.storing_path, unique_value=objDict.get(cls.unique_attribute)):
             new_instance = cls(queryDict=objDict)  # Dynamically call the subclass constructor
             rw.saveInstanceToCSV(new_instance, cls.storing_path)
             return new_instance
@@ -202,13 +202,13 @@ class PlayedSong(SpotifyObject):
         del self.queryDict
 
     def __str__(self):
-        return f"[{self.id}] {self.track} played from the {self.context['type']} {self.context['id']}"
+        return f"[{self.playedAt()}] {self.track} played from the {self.context['type']} {self.context['id']}"
 
     def getFromId(self, new_id):
         return None
 
     def playedAt(self):
-        return datetime.fromtimestamp(self.id)
+        return datetime.fromtimestamp(int(self.id)) + timedelta(hours=1)
 
 
 class RecentlyPlayedSongs:

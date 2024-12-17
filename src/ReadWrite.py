@@ -23,7 +23,7 @@ def instanceExists(file_path, unique_value, unique_attribute="id"):
         with open(full_path, mode='r', newline='', encoding='windows-1252') as file:
             reader = csv.DictReader(file)
             for row in reader:
-                if row[unique_attribute] == unique_value:
+                if int(row[unique_attribute]) == unique_value:
                     return True
 
     return False

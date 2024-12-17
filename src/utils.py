@@ -22,5 +22,5 @@ def get_data_path():
 
 
 def getTimestamp(date):
-    return datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp()
+    return str(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp())
 
