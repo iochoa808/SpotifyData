@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 
 # Abstract class
 class SpotifyObject(ABC):
+
     storing_path = None
     unique_attribute = 'id'
     name_attribute = 'name'
@@ -17,7 +18,7 @@ class SpotifyObject(ABC):
             raise ValueError(f"{self.__class__.__name__} requires either 'queryDict' or 'new_id' to initialize.")
 
         # Use queryDict if provided, otherwise fetch data using new_id
-        self.queryDict = queryDict if queryDict else self.getFromId(new_id)
+        self.queryDict = queryDict if queryDict else self.fetchFromAPI(new_id)
         if not self.queryDict:
             raise ValueError(f"Query incorrecta de {self.__class__.__name__}")
 
@@ -27,12 +28,11 @@ class SpotifyObject(ABC):
             raise ValueError(f"No unique attribute has been found in {self.__class__}")
 
         # name for most, display_name for user
-        self.name = self.queryDict[self.__class__.name_attribute]
-        if not self.name:
-            del self.name
+        self.name = self.queryDict[self.__class__.name_attribute] \
+            if self.__class__.name_attribute is not None else None
 
     @abstractmethod
-    def getFromId(self, new_id):
+    def fetchFromAPI(self, new_id):
         # Abstract method to fetch data using new_id. Subclasses must implement this method.
         pass
 
@@ -47,6 +47,15 @@ class SpotifyObject(ABC):
             rw.saveInstanceToCSV(new_instance, cls.storing_path)
             return new_instance
         return None
+
+    @classmethod
+    def getFromUniqueValue(cls, unique_value):
+        if cls.storing_path is None:
+            raise ValueError(f"{cls.__name__} must define a 'storing_path'.")
+
+        #return rw.instanceExists(cls.storing_path, unique_value=unique_value)
+        #print(type(res), res)
+        # <class 'dict'> {'id': '3AA28KZvwAUcZuOKwyblJQ', 'name': 'Gorillaz', 'followers': '12485975', 'genres': "['alternative hip hop', 'modern rock', 'rock']", 'popularity': '81'}
 
 
 class Song(SpotifyObject):
@@ -69,7 +78,7 @@ class Song(SpotifyObject):
     def __str__(self):
         return f"{self.name} by {', '.join(artist for artist in self.artists)}"
 
-    def getFromId(self, new_id):
+    def fetchFromAPI(self, new_id):
         return sp.track(new_id)
 
 
@@ -94,7 +103,7 @@ class Album(SpotifyObject):
     def __str__(self):
         return f"{self.name} by {', '.join(artist for artist in self.artists)}"
 
-    def getFromId(self, new_id):
+    def fetchFromAPI(self, new_id):
         return sp.album(new_id)
 
 
@@ -105,39 +114,32 @@ class Artist(SpotifyObject):
     def __init__(self, queryDict=None, new_id=""):
         super().__init__(queryDict=queryDict, new_id=new_id)
 
+        print(self.queryDict['followers']['total'], type(self.queryDict['followers']['total']))
+
         self.followers = self.queryDict['followers']['total']
         self.genres = self.queryDict['genres']
         self.popularity = self.queryDict['popularity']
-
-        # TODO: BUG DE SPOTIPY | ALBUM_TYPE NO EXCLUEIX ELS TIPUS
-        # Get list with all tracks
-        self.albums, results = [], sp.artist_albums(self.id, album_type='album,single')
-        while results:
-            self.albums.extend(item['id'] for item in results['items'])
-            results = sp.next(results) if results['next'] else None
-
 
         del self.queryDict
 
     def __str__(self):
         return self.name
 
-    def getFromId(self, new_id):
+    def fetchFromAPI(self, new_id):
         return sp.artist(new_id)
 
-    def getAlbums(self, ofst=0):
-        if ofst > self.total_albums:
-            return []
-        # Get items of the album
-        new_albums = [
-            Album(queryDict=album)
-            for album in sp.artist_albums(self.id, include_groups='album,single')['items']
-        ]
-
-        return new_albums + self.getAlbums(ofst=ofst + 20)
+    def getAlbums(self):
+        # TODO: BUG DE SPOTIPY | ALBUM_TYPE NO EXCLUEIX ELS TIPUS
+        # Get list with all tracks
+        albums, results = [], sp.artist_albums(self.id, album_type='album,single')
+        while results:
+            albums.extend(item['id'] for item in results['items'])
+            results = sp.next(results) if results['next'] else None
+        return albums
 
 
 class Playlist(SpotifyObject):
+
     storing_path = "playlists.csv"
     likedSongs = '0000000000000000000000'
 
@@ -147,26 +149,21 @@ class Playlist(SpotifyObject):
         self.description = self.queryDict['description']
         self.followers = self.queryDict['followers']['total']
         self.owner = self.queryDict['owner']['id']
-        self.total_tracks = self.queryDict['tracks']['total']
 
         del self.queryDict
 
     def __str__(self):
         return f"{self.name} by {self.owner} with {self.total_tracks} songs"
 
-    def getFromId(self, new_id):
+    def fetchFromAPI(self, new_id):
         return sp.playlist(new_id)
 
-    def getSongs(self, ofst=0):
-        if ofst > self.total_tracks:
-            return []
-        # Get items of the album
-        new_tracks = [
-            {'added_at': track['added_at'], 'track': Song(queryDict=track['track'])}
-            for track in sp.playlist_items(self.id, limit=100, offset=ofst)['items']
-        ]
-
-        return new_tracks + self.getSongs(ofst=ofst + 100)
+    def getTracks(self):
+        tracks, results = [], sp.playlist_items(self.id)
+        while results:
+            tracks.extend(item['id'] for item in results['items'])
+            results = sp.next(results) if results['next'] else None
+        return tracks
 
 
 class User(SpotifyObject):
@@ -184,11 +181,19 @@ class User(SpotifyObject):
     def __str__(self):
         return self.name
 
-    def getFromId(self, new_id):
+    def fetchFromAPI(self, new_id):
         return sp.user(new_id)
+
+    def getPlaylists(self):
+        playlists, results = [], sp.user_playlists(self.id)
+        while results:
+            playlists.extend(item['id'] for item in results['items'])
+            results = sp.next(results) if results['next'] else None
+        return playlists
 
 
 class PlayedSong(SpotifyObject):
+
     storing_path = "recently_played.csv"
     unique_attribute = 'played_at'
     name_attribute = None
@@ -207,8 +212,8 @@ class PlayedSong(SpotifyObject):
     def __str__(self):
         return f"[{self.playedAt()}] {self.track} played from the {self.context['type']} {self.context['id']}"
 
-    def getFromId(self, new_id):
-        return None
+    def fetchFromAPI(self, new_id):
+        raise Exception(f"This method doesn't exist in {self.__name__}")
 
     def playedAt(self):
         return datetime.fromtimestamp(int(self.id.split('.')[0])) + timedelta(hours=1)
