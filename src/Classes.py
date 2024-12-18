@@ -71,10 +71,9 @@ class Song(SpotifyObject):
         self.duration_ms = self.queryDict['duration_ms']
         self.popularity = self.queryDict['popularity']
         self.album = self.queryDict['album_id']
-        # TODO: SI NO L'AGAFES DEL CSV NO ÉS CORRECTE
         try:
             self.artists_id = ast.literal_eval(self.queryDict['artists_id'])
-        except:
+        except ValueError:
             self.artists_id = self.queryDict['artists_id']
         self.track_number = self.queryDict['track_number']
         self.isrc = self.queryDict['isrc']
