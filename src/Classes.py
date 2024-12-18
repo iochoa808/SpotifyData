@@ -3,6 +3,7 @@ import ReadWrite as rw
 import utils
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
+import ast
 
 
 # Abstract class
@@ -17,8 +18,12 @@ class SpotifyObject(ABC):
         if queryDict is None and not new_id:
             raise ValueError(f"{self.__class__.__name__} requires either 'queryDict' or 'new_id' to initialize.")
 
-        # Use queryDict if provided, otherwise fetch data using new_id
-        self.queryDict = queryDict if queryDict else self.fetchFromAPI(new_id)
+        csvDict = rw.instanceExists(self.storing_path, new_id)  # Es busca al CSV
+        self.queryDict = csvDict if csvDict else (              # Si existeix al CSV
+            self.flatten_dict(queryDict) if queryDict else (    # Altrament si s'ha donat queryDict
+                self.flatten_dict(self.fetchFromAPI(new_id))    # Es busca a la API
+            )
+        )
         if not self.queryDict:
             raise ValueError(f"Query incorrecta de {self.__class__.__name__}")
 
@@ -31,9 +36,15 @@ class SpotifyObject(ABC):
         self.name = self.queryDict[self.__class__.name_attribute] \
             if self.__class__.name_attribute is not None else None
 
+    @staticmethod
     @abstractmethod
-    def fetchFromAPI(self, new_id):
+    def fetchFromAPI(new_id):
         # Abstract method to fetch data using new_id. Subclasses must implement this method.
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def flatten_dict(dict):
         pass
 
     @classmethod
@@ -48,15 +59,6 @@ class SpotifyObject(ABC):
             return new_instance
         return None
 
-    @classmethod
-    def getFromUniqueValue(cls, unique_value):
-        if cls.storing_path is None:
-            raise ValueError(f"{cls.__name__} must define a 'storing_path'.")
-
-        #return rw.instanceExists(cls.storing_path, unique_value=unique_value)
-        #print(type(res), res)
-        # <class 'dict'> {'id': '3AA28KZvwAUcZuOKwyblJQ', 'name': 'Gorillaz', 'followers': '12485975', 'genres': "['alternative hip hop', 'modern rock', 'rock']", 'popularity': '81'}
-
 
 class Song(SpotifyObject):
 
@@ -68,18 +70,30 @@ class Song(SpotifyObject):
         self.explicit = self.queryDict['explicit']
         self.duration_ms = self.queryDict['duration_ms']
         self.popularity = self.queryDict['popularity']
-        self.album = self.queryDict['album']['id']
-        self.artists = [artist['id'] for artist in self.queryDict['artists']]
+        self.album = self.queryDict['album_id']
+        # TODO: SI NO L'AGAFES DEL CSV NO ÉS CORRECTE
+        try:
+            self.artists_id = ast.literal_eval(self.queryDict['artists_id'])
+        except:
+            self.artists_id = self.queryDict['artists_id']
         self.track_number = self.queryDict['track_number']
-        self.isrc = self.queryDict['external_ids']['isrc']
+        self.isrc = self.queryDict['isrc']
 
         del self.queryDict
 
     def __str__(self):
-        return f"{self.name} by {', '.join(artist for artist in self.artists)}"
+        return f"{self.name} by {', '.join(artist for artist in self.artists_id)}"
 
-    def fetchFromAPI(self, new_id):
+    @staticmethod
+    def fetchFromAPI(new_id):
         return sp.track(new_id)
+
+    @staticmethod
+    def flatten_dict(dict):
+        d = utils.flatten_dict(dict)
+        d['isrc'] = d['external_ids_isrc']
+        d['artists_id'] = [item['id'] for item in d['album_artists']]
+        return d
 
 
 class Album(SpotifyObject):

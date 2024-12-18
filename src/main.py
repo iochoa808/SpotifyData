@@ -5,6 +5,7 @@ from Classes import *
 #print(f"\n\n{len(recentlyPlayedSongs)} new songs stored")
 
 
-artist = Artist.getFromUniqueValue('3AA28KZvwAUcZuOKwyblJQ')
+song = Song(sp.track('7Jk2pg4g0c5rz5AfkEGMRp'))
 
-print(artist)
+print(song)
+
