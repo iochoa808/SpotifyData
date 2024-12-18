@@ -24,3 +24,10 @@ def get_data_path():
 def getTimestamp(date):
     return str(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp())
 
+
+def flatten_dict(d, sep='_'):
+    return {
+        f"{key}{sep}{subkey}" if isinstance(value, dict) else key: subvalue
+        for key, value in d.items()
+        for subkey, subvalue in (value.items() if isinstance(value, dict) else [(key, value)])
+    }
