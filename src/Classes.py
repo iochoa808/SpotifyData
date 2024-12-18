@@ -18,14 +18,16 @@ class SpotifyObject(ABC):
 
         # Use queryDict if provided, otherwise fetch data using new_id
         self.queryDict = queryDict if queryDict else self.getFromId(new_id)
+        if not self.queryDict:
+            raise ValueError(f"Query incorrecta de {self.__class__.__name__}")
 
         # id for most, played_at for recentlyPlayed
-        self.id = queryDict.get(self.__class__.unique_attribute)
+        self.id = self.queryDict[self.__class__.unique_attribute]
         if not self.id:
             raise ValueError(f"No unique attribute has been found in {self.__class__}")
 
         # name for most, display_name for user
-        self.name = queryDict.get(self.__class__.name_attribute)
+        self.name = self.queryDict[self.__class__.name_attribute]
         if not self.name:
             del self.name
 
@@ -78,9 +80,14 @@ class Album(SpotifyObject):
     def __init__(self, queryDict=None, new_id=""):
         super().__init__(queryDict=queryDict, new_id=new_id)
 
-        self.total_tracks = queryDict['total_tracks']
-        self.release_date = queryDict['release_date']
-        self.artists = [artist['id'] for artist in queryDict['artists']]
+        self.release_date = self.queryDict['release_date']
+        self.artists = [artist['id'] for artist in self.queryDict['artists']]
+
+        # Get list with all tracks
+        self.tracks, results = [], self.queryDict['tracks']
+        while results:
+            self.tracks.extend(item['id'] for item in results['items'])
+            results = sp.next(results) if results['next'] else None
 
         del self.queryDict
 
@@ -90,17 +97,6 @@ class Album(SpotifyObject):
     def getFromId(self, new_id):
         return sp.album(new_id)
 
-    def getSongs(self, ofst=0):
-        if ofst > self.total_tracks:
-            return []
-        # Get items of the album
-        new_tracks = [
-            Song(queryDict=(track | {'album': {'id': self.id}}))
-            for track in sp.album_tracks(self.id, limit=50, offset=ofst)['items']
-        ]
-
-        return new_tracks + self.getSongs(ofst=ofst + 50)
-
 
 class Artist(SpotifyObject):
 
@@ -109,10 +105,17 @@ class Artist(SpotifyObject):
     def __init__(self, queryDict=None, new_id=""):
         super().__init__(queryDict=queryDict, new_id=new_id)
 
-        self.followers = queryDict['followers']['total']
-        self.genres = queryDict['genres']
-        self.popularity = queryDict['popularity']
-        self.total_albums = sp.artist_albums(self.id)['total']
+        self.followers = self.queryDict['followers']['total']
+        self.genres = self.queryDict['genres']
+        self.popularity = self.queryDict['popularity']
+
+        # TODO: BUG DE SPOTIPY | ALBUM_TYPE NO EXCLUEIX ELS TIPUS
+        # Get list with all tracks
+        self.albums, results = [], sp.artist_albums(self.id, album_type='album,single')
+        while results:
+            self.albums.extend(item['id'] for item in results['items'])
+            results = sp.next(results) if results['next'] else None
+
 
         del self.queryDict
 
@@ -141,10 +144,10 @@ class Playlist(SpotifyObject):
     def __init__(self, queryDict=None, new_id=""):
         super().__init__(queryDict=queryDict, new_id=new_id)
 
-        self.description = queryDict['description']
-        self.followers = queryDict['followers']
-        self.owner = queryDict['owner']['id']
-        self.total_tracks = queryDict['tracks']['total']
+        self.description = self.queryDict['description']
+        self.followers = self.queryDict['followers']['total']
+        self.owner = self.queryDict['owner']['id']
+        self.total_tracks = self.queryDict['tracks']['total']
 
         del self.queryDict
 
@@ -174,7 +177,7 @@ class User(SpotifyObject):
     def __init__(self, queryDict=None, new_id=""):
         super().__init__(queryDict=queryDict, new_id=new_id)
 
-        self.followers = queryDict['followers']
+        self.followers = self.queryDict['followers']
 
         del self.queryDict
 
@@ -193,10 +196,10 @@ class PlayedSong(SpotifyObject):
     def __init__(self, queryDict):
         super().__init__(queryDict=queryDict)
 
-        self.track = queryDict['track']['id']
+        self.track = self.queryDict['track']['id']
         self.context = {
-            'type': queryDict['context']['type'],
-            'id': queryDict['context']['uri'].split(':')[2]
+            'type': self.queryDict['context']['type'],
+            'id': self.queryDict['context']['uri'].split(':')[2]
         }
 
         del self.queryDict
@@ -208,7 +211,7 @@ class PlayedSong(SpotifyObject):
         return None
 
     def playedAt(self):
-        return datetime.fromtimestamp(int(self.id)) + timedelta(hours=1)
+        return datetime.fromtimestamp(int(self.id.split('.')[0])) + timedelta(hours=1)
 
 
 class RecentlyPlayedSongs:
@@ -227,7 +230,7 @@ class RecentlyPlayedSongs:
             if not song['context'] else song
             for song in recently_played
         ]
-        # Convertir played_at a format datetime
+        # Convertir played_at a unix timestamp
         recently_played = [
             {**item, 'played_at': utils.getTimestamp(item['played_at'])}
             for item in recently_played
