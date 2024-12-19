@@ -39,11 +39,10 @@ jobs:
           
       - name: Check and Stage Changes
         run: |
-          git add ./data/*.csv
           if [ -f token.txt ]; then
             rm token.txt
           fi
-          if ls *.csv 1> /dev/null 2>&1; then
+          if ls ./data/*.csv 1> /dev/null 2>&1; then
             echo "CSV files found."
             echo "found=true" >> $GITHUB_ENV
           else
@@ -54,6 +53,7 @@ jobs:
       - name: Commit and Push CSV Files
         if: env.found == 'true'
         run: |
+          git add ./data/*.csv
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git commit -m "Updated CSV files"
