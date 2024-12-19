@@ -14,7 +14,7 @@ class SpotifyObject(ABC):
     unique_attribute = 'id'
     name_attribute = 'name'
 
-    def __init__(self, queryDict=None, id=""):
+    def __init__(self, id="", queryDict=None):
         # Use queryDict if provided, otherwise get data with new_id
         if queryDict is None and not id:
             raise ValueError(f"{self.__class__.__name__} requires either 'queryDict' or 'new_id' to initialize.")
@@ -29,12 +29,12 @@ class SpotifyObject(ABC):
             raise ValueError(f"Query incorrecta de {self.__class__.__name__}")
 
         # Id
-        self.id = utils.accesDictPath(self.queryDict, self.unique_attribute)
+        self.id = utils.access_dict_path(self.queryDict, self.unique_attribute)
         if not self.id:
             raise ValueError(f"No unique attribute has been found in {self.__class__.__name__}")
 
         # Name
-        self.name = utils.accesDictPath(self.queryDict, self.name_attribute)
+        self.name = utils.access_dict_path(self.queryDict, self.name_attribute)
 
     @staticmethod
     @abstractmethod
@@ -64,8 +64,8 @@ class Song(SpotifyObject):
 
     storing_path = "songs.csv"
 
-    def __init__(self, queryDict=None, id=""):
-        super().__init__(queryDict, id)
+    def __init__(self, id="", queryDict=None):
+        super().__init__(id, queryDict)
 
         self.explicit = self.queryDict['explicit']
         self.duration_ms = self.queryDict['duration_ms']
@@ -96,8 +96,8 @@ class Album(SpotifyObject):
 
     storing_path = "albums.csv"
 
-    def __init__(self, queryDict=None, id=""):
-        super().__init__(queryDict, id)
+    def __init__(self, id="", queryDict=None):
+        super().__init__(id, queryDict)
 
         self.release_date = self.queryDict['release_date']
         self.artists_id = self.queryDict['artists_id']
@@ -129,8 +129,8 @@ class Artist(SpotifyObject):
 
     storing_path = "artists.csv"
 
-    def __init__(self, queryDict=None, id=""):
-        super().__init__(queryDict, id)
+    def __init__(self, id="", queryDict=None):
+        super().__init__(id, queryDict)
 
         self.followers = self.queryDict['followers']
         self.genres = self.queryDict['genres']
@@ -165,8 +165,8 @@ class Playlist(SpotifyObject):
     storing_path = "playlists.csv"
     likedSongs = '0000000000000000000000'
 
-    def __init__(self, queryDict=None, id=""):
-        super().__init__(queryDict, id)
+    def __init__(self, id="", queryDict=None):
+        super().__init__(id, queryDict)
 
         self.description = self.queryDict['description']
         self.followers = self.queryDict['followers']
@@ -184,7 +184,7 @@ class Playlist(SpotifyObject):
     @staticmethod
     def flatten_dict(query):
         query['followers'] = query['followers']['total']
-        query['owner'] = query['owner']['id']
+        query['owner_id'] = query['owner']['id']
         return query
 
     def getTracks(self):
@@ -200,8 +200,8 @@ class User(SpotifyObject):
     storing_path = "users.csv"
     name_attribute = 'display_name'
 
-    def __init__(self, queryDict=None, id=""):
-        super().__init__(queryDict, id)
+    def __init__(self, id="", queryDict=None):
+        super().__init__(id, queryDict)
 
         self.followers = self.queryDict['followers']
 
@@ -230,10 +230,10 @@ class PlayedSong(SpotifyObject):
 
     storing_path = "recently_played.csv"
     unique_attribute = 'played_at'
-    name_attribute = "track.name"
+    name_attribute = "track_name"
 
-    def __init__(self, queryDict=None, id=""):
-        super().__init__(queryDict, id)
+    def __init__(self, id="", queryDict=None):
+        super().__init__(id, queryDict)
 
         self.track_id = self.queryDict['track_id']
         self.context_type = self.queryDict['context_type']
@@ -250,9 +250,8 @@ class PlayedSong(SpotifyObject):
 
     @staticmethod
     def flatten_dict(query):
-        query['track_id'] = query['track']['id']
-        query['context_type'] = query['context']['type']
-        query['context_id'] = query['context']['uri'].split(':')[2]
+        query = utils.flatten_dict(query)
+        query['context_id'] = query['context_uri'].split(':')[2]
         return query
 
     def playedAt(self):
