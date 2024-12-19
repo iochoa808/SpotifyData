@@ -44,14 +44,15 @@ jobs:
             rm token.txt
           fi
           if ls *.csv 1> /dev/null 2>&1; then
-              echo "CSV files found."
-              echo "found=true" >> $GITHUB_ENV
+            echo "CSV files found."
+            echo "found=true" >> $GITHUB_ENV
           else
             echo "No CSV files found."
-            exit 0
+            echo "found=false" >> $GITHUB_ENV
           fi
 
       - name: Commit and Push CSV Files
+        if: env.found == 'true'
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
@@ -61,6 +62,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload CSV Files
+        if: env.found == 'true'
         uses: actions/upload-artifact@v3
         with:
           name: csv-outputs
