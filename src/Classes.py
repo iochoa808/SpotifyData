@@ -10,31 +10,32 @@ import ast
 class SpotifyObject(ABC):
 
     storing_path = None
+
+    # Both can be dictionary paths separated by '.'
     unique_attribute = 'id'
     name_attribute = 'name'
 
-    def __init__(self, queryDict=None, new_id=""):
+    def __init__(self, queryDict=None, id=""):
         # Use queryDict if provided, otherwise get data with new_id
-        if queryDict is None and not new_id:
+        if queryDict is None and not id:
             raise ValueError(f"{self.__class__.__name__} requires either 'queryDict' or 'new_id' to initialize.")
 
-        csvDict = rw.instanceExists(self.storing_path, new_id)  # Es busca al CSV
+        csvDict = rw.instanceExists(self.storing_path, id)      # Es busca al CSV
         self.queryDict = csvDict if csvDict else (              # Si existeix al CSV
             self.flatten_dict(queryDict) if queryDict else (    # Altrament si s'ha donat queryDict
-                self.flatten_dict(self.fetchFromAPI(new_id))    # Es busca a la API
+                self.flatten_dict(self.fetchFromAPI(id))        # Altrament es busca a la API
             )
         )
         if not self.queryDict:
             raise ValueError(f"Query incorrecta de {self.__class__.__name__}")
 
-        # id for most, played_at for recentlyPlayed
-        self.id = self.queryDict[self.__class__.unique_attribute]
+        # Id
+        self.id = utils.accesDictPath(self.queryDict, self.unique_attribute)
         if not self.id:
-            raise ValueError(f"No unique attribute has been found in {self.__class__}")
+            raise ValueError(f"No unique attribute has been found in {self.__class__.__name__}")
 
-        # name for most, display_name for user
-        self.name = self.queryDict[self.__class__.name_attribute] \
-            if self.__class__.name_attribute is not None else None
+        # Name
+        self.name = utils.accesDictPath(self.queryDict, self.name_attribute)
 
     @staticmethod
     @abstractmethod
@@ -44,7 +45,7 @@ class SpotifyObject(ABC):
 
     @staticmethod
     @abstractmethod
-    def flatten_dict(dict):
+    def flatten_dict(query):
         pass
 
     @classmethod
@@ -64,17 +65,14 @@ class Song(SpotifyObject):
 
     storing_path = "songs.csv"
 
-    def __init__(self, queryDict=None, new_id=""):
-        super().__init__(queryDict=queryDict, new_id=new_id)
+    def __init__(self, queryDict=None, id=""):
+        super().__init__(queryDict, id)
 
         self.explicit = self.queryDict['explicit']
         self.duration_ms = self.queryDict['duration_ms']
         self.popularity = self.queryDict['popularity']
-        self.album = self.queryDict['album_id']
-        try:
-            self.artists_id = ast.literal_eval(self.queryDict['artists_id'])
-        except ValueError:
-            self.artists_id = self.queryDict['artists_id']
+        self.album_id = self.queryDict['album_id']
+        self.artists_id = self.queryDict['artists_id']
         self.track_number = self.queryDict['track_number']
         self.isrc = self.queryDict['isrc']
 
@@ -88,8 +86,8 @@ class Song(SpotifyObject):
         return sp.track(new_id)
 
     @staticmethod
-    def flatten_dict(dict):
-        d = utils.flatten_dict(dict)
+    def flatten_dict(query):
+        d = utils.flatten_dict(query)
         d['isrc'] = d['external_ids_isrc']
         d['artists_id'] = [item['id'] for item in d['album_artists']]
         return d
@@ -99,52 +97,64 @@ class Album(SpotifyObject):
 
     storing_path = "albums.csv"
 
-    def __init__(self, queryDict=None, new_id=""):
-        super().__init__(queryDict=queryDict, new_id=new_id)
+    def __init__(self, queryDict=None, id=""):
+        super().__init__(queryDict, id)
 
         self.release_date = self.queryDict['release_date']
-        self.artists = [artist['id'] for artist in self.queryDict['artists']]
-
-        # Get list with all tracks
-        self.tracks, results = [], self.queryDict['tracks']
-        while results:
-            self.tracks.extend(item['id'] for item in results['items'])
-            results = sp.next(results) if results['next'] else None
+        self.artists_id = self.queryDict['artists_id']
+        self.tracks = self.queryDict['tracks']
+        self.popularity = self.queryDict['popularity']
 
         del self.queryDict
 
     def __str__(self):
-        return f"{self.name} by {', '.join(artist for artist in self.artists)}"
+        return f"{self.name} by {', '.join(artist for artist in self.artists_id)}"
 
-    def fetchFromAPI(self, new_id):
+    @staticmethod
+    def fetchFromAPI(new_id):
         return sp.album(new_id)
+
+    @staticmethod
+    def flatten_dict(query):
+        tracks, results = [], query['tracks']
+        while results:
+            tracks.extend(item['id'] for item in results['items'])
+            results = sp.next(results) if results['next'] else None
+
+        query['tracks'] = tracks
+        query['artists_id'] = [item['id'] for item in query['artists']]
+        return query
 
 
 class Artist(SpotifyObject):
 
     storing_path = "artists.csv"
 
-    def __init__(self, queryDict=None, new_id=""):
-        super().__init__(queryDict=queryDict, new_id=new_id)
+    def __init__(self, queryDict=None, id=""):
+        super().__init__(queryDict, id)
 
-        print(self.queryDict['followers']['total'], type(self.queryDict['followers']['total']))
-
-        self.followers = self.queryDict['followers']['total']
+        self.followers = self.queryDict['followers']
         self.genres = self.queryDict['genres']
         self.popularity = self.queryDict['popularity']
 
         del self.queryDict
 
     def __str__(self):
-        return self.name
+        return f"{self.name} with {self.followers} followers"
 
-    def fetchFromAPI(self, new_id):
+    @staticmethod
+    def fetchFromAPI(new_id):
         return sp.artist(new_id)
 
+    @staticmethod
+    def flatten_dict(query):
+        query['followers'] = query['followers']['total']
+        return query
+
     def getAlbums(self):
-        # TODO: BUG DE SPOTIPY | ALBUM_TYPE NO EXCLUEIX ELS TIPUS
+        # TODO: BUG DE SPOTIPY | ALBUM_TYPE NO DISCRIMINA ELS TIPUS (ALBUM_TYPE)
         # Get list with all tracks
-        albums, results = [], sp.artist_albums(self.id, album_type='album,single')
+        albums, results = [], sp.artist_albums(self.id, album_type='album')
         while results:
             albums.extend(item['id'] for item in results['items'])
             results = sp.next(results) if results['next'] else None
@@ -156,20 +166,27 @@ class Playlist(SpotifyObject):
     storing_path = "playlists.csv"
     likedSongs = '0000000000000000000000'
 
-    def __init__(self, queryDict=None, new_id=""):
-        super().__init__(queryDict=queryDict, new_id=new_id)
+    def __init__(self, queryDict=None, id=""):
+        super().__init__(queryDict, id)
 
         self.description = self.queryDict['description']
-        self.followers = self.queryDict['followers']['total']
-        self.owner = self.queryDict['owner']['id']
+        self.followers = self.queryDict['followers']
+        self.owner = self.queryDict['owner']
 
         del self.queryDict
 
     def __str__(self):
-        return f"{self.name} by {self.owner} with {self.total_tracks} songs"
+        return f"{self.name} by {self.owner} and {self.followers} followers"
 
-    def fetchFromAPI(self, new_id):
+    @staticmethod
+    def fetchFromAPI(new_id):
         return sp.playlist(new_id)
+
+    @staticmethod
+    def flatten_dict(query):
+        query['followers'] = query['followers']['total']
+        query['owner'] = query['owner']['id']
+        return query
 
     def getTracks(self):
         tracks, results = [], sp.playlist_items(self.id)
@@ -184,8 +201,8 @@ class User(SpotifyObject):
     storing_path = "users.csv"
     name_attribute = 'display_name'
 
-    def __init__(self, queryDict=None, new_id=""):
-        super().__init__(queryDict=queryDict, new_id=new_id)
+    def __init__(self, queryDict=None, id=""):
+        super().__init__(queryDict, id)
 
         self.followers = self.queryDict['followers']
 
@@ -194,8 +211,13 @@ class User(SpotifyObject):
     def __str__(self):
         return self.name
 
-    def fetchFromAPI(self, new_id):
+    @staticmethod
+    def fetchFromAPI(new_id):
         return sp.user(new_id)
+
+    @staticmethod
+    def flatten_dict(query):
+        return query
 
     def getPlaylists(self):
         playlists, results = [], sp.user_playlists(self.id)
@@ -209,24 +231,30 @@ class PlayedSong(SpotifyObject):
 
     storing_path = "recently_played.csv"
     unique_attribute = 'played_at'
-    name_attribute = None
+    name_attribute = "track.name"
 
-    def __init__(self, queryDict):
-        super().__init__(queryDict=queryDict)
+    def __init__(self, queryDict=None, id=""):
+        super().__init__(queryDict, id)
 
-        self.track = self.queryDict['track']['id']
-        self.context = {
-            'type': self.queryDict['context']['type'],
-            'id': self.queryDict['context']['uri'].split(':')[2]
-        }
+        self.track_id = self.queryDict['track_id']
+        self.context_type = self.queryDict['context_type']
+        self.context_id = self.queryDict['context_id']
 
         del self.queryDict
 
     def __str__(self):
-        return f"[{self.playedAt()}] {self.track} played from the {self.context['type']} {self.context['id']}"
+        return f"[{self.playedAt()}] {self.name} played from the {self.context_type} {self.context_id}"
 
-    def fetchFromAPI(self, new_id):
-        raise Exception(f"This method doesn't exist in {self.__name__}")
+    @staticmethod
+    def fetchFromAPI(new_id):
+        raise Exception(f"Can't get {__class__.__name__} information from API")
+
+    @staticmethod
+    def flatten_dict(query):
+        query['track_id'] = query['track']['id']
+        query['context_type'] = query['context']['type']
+        query['context_id'] = query['context']['uri'].split(':')[2]
+        return query
 
     def playedAt(self):
         return datetime.fromtimestamp(int(self.id.split('.')[0])) + timedelta(hours=1)

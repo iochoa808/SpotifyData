@@ -31,3 +31,12 @@ def flatten_dict(d, sep='_'):
         for key, value in d.items()
         for subkey, subvalue in (value.items() if isinstance(value, dict) else [(key, value)])
     }
+
+
+def accesDictPath(dataDict, path, separator='.'):
+    keys = path.split(separator)
+    for key in keys:
+        if not isinstance(dataDict, dict) or key not in dataDict:
+            return None
+        dataDict = dataDict[key]
+    return dataDict

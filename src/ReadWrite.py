@@ -1,6 +1,7 @@
 import csv
 import os
 import utils
+import ast
 
 DATA = utils.get_data_path()
 
@@ -16,15 +17,17 @@ def instanceExists(file_path, unique_value, unique_attribute="id"):
         with open(full_path, mode='r', newline='', encoding='utf-8') as file:
             reader = csv.DictReader(file)
             for row in reader:
+                typed_row = {key: parse_value(value) for key, value in row.items()}
                 if row[unique_attribute] == unique_value:
-                    return row
+                    return typed_row
     except UnicodeDecodeError:
         # Fallback to a more forgiving encoding
-        with open(full_path, mode='r', newline='', encoding='windows-1252') as file:
+        with (open(full_path, mode='r', newline='', encoding='windows-1252') as file):
             reader = csv.DictReader(file)
             for row in reader:
-                if int(row[unique_attribute]) == unique_value:
-                    return row
+                typed_row = {key: parse_value(value) for key, value in row.items()}
+                if row[unique_attribute] == unique_value:
+                    return typed_row
 
     return False
 
@@ -44,3 +47,21 @@ def saveInstanceToCSV(instance, file_path):
 
         # Write the instance data
         writer.writerow(attributes)
+
+
+def parse_value(value):
+    """Parses a string value and converts it to the appropriate type."""
+    if value.startswith('[') and value.endswith(']'):
+        # Attempt to parse as a list
+        try:
+            return ast.literal_eval(value)  # Safely evaluate the string as a Python list
+        except (ValueError, SyntaxError):
+            return value  # Fallback to the original string if parsing fails
+    if value.isdigit():
+        return int(value)  # Convert numeric strings to integers
+    if value.lower() in {'true', 'false'}:
+        return value.lower() == 'true'  # Convert "true"/"false" to boolean
+    try:
+        return float(value)  # Convert numeric strings to float if applicable
+    except ValueError:
+        return value  # Return the original string for all other cases
