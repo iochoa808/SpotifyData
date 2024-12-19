@@ -20,8 +20,9 @@ def instanceExists(file_path, unique_value, unique_attribute="id"):
                 typed_row = {key: parse_value(value) for key, value in row.items()}
                 if row[unique_attribute] == unique_value:
                     return typed_row
+
+    # Fallback to a more forgiving encoding
     except UnicodeDecodeError:
-        # Fallback to a more forgiving encoding
         with (open(full_path, mode='r', newline='', encoding='windows-1252') as file):
             reader = csv.DictReader(file)
             for row in reader:
@@ -50,7 +51,6 @@ def saveInstanceToCSV(instance, file_path):
 
 
 def parse_value(value):
-    """Parses a string value and converts it to the appropriate type."""
     if value.startswith('[') and value.endswith(']'):
         # Attempt to parse as a list
         try:
