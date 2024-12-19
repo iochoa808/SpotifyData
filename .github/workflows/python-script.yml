@@ -41,13 +41,13 @@ jobs:
         run: |
           git add ./data/*.csv
           if [ -f token.txt ]; then
-            echo "Deleting token.txt..."
             rm token.txt
-          else
-            echo "token.txt not found. Skipping deletion."
           fi
-          if git diff --cached --quiet; then
-            echo "No changes detected. Exiting workflow."
+          if ls *.csv 1> /dev/null 2>&1; then
+              echo "CSV files found."
+              echo "found=true" >> $GITHUB_ENV
+          else
+            echo "No CSV files found."
             exit 0
           fi
 
