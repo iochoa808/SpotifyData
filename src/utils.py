@@ -25,16 +25,18 @@ def getTimestamp(date):
     return str(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp())
 
 
-def flatten_dict(d, sep='_'):
-    return {
-        f"{key}{sep}{subkey}" if isinstance(value, dict) else key: subvalue
-        for key, value in d.items()
-        for subkey, subvalue in (value.items() if isinstance(value, dict) else [(key, value)])
-    }
+def getItemsFromAPICall(itemsObj):
+    results = []
+    while itemsObj:
+        results.extend(item for item in itemsObj['items'])
+        itemsObj = sp.next(itemsObj) if itemsObj['next'] else None
+
+    return results
 
 
-def access_dict_path(data, path, separator='.'):
-    if not path:  # If the path is empty, return the current data
+def getValueFromNestedDictionary(data, path, separator='.'):
+    # If the path is empty, return the current data
+    if not path:
         return data
 
     keys = path.split(separator, 1)  # Split into the first key and the remaining path
@@ -43,48 +45,17 @@ def access_dict_path(data, path, separator='.'):
 
     # Apply the function recursively to each element in the list
     if isinstance(data, list):
-        return [access_dict_path(item, path, separator) for item in data]
-    # Recurse into the next level with the remaining path
-    elif isinstance(data, dict) and key in data:
-        return access_dict_path(data[key], remaining_path, separator) if remaining_path else data[key]
-    # If the key is not found, return None
-    else:
-        return None
+        return [getValueFromNestedDictionary(item, path, separator) for item in data]
 
-def access_dict_pathNext(data, path, separator='.'):
-    if not path:  # If the path is empty, return the current data
-        return data
-
-    keys = path.split(separator, 1)  # Split into the first key and the remaining path
-    key = keys[0]
-    remaining_path = keys[1] if len(keys) > 1 else None
-
-    print(key, data.keys())
-
-    # Apply the function recursively to each element in the list
-    if isinstance(data, list):
-        return [access_dict_path(item, path, separator) for item in data]
-
-    # NO HI HA ITEMS, FER TRAÇA
+    # Recurse into the next level that is in a list with the remaining path
     elif isinstance(data, dict) and key in data and 'next' in data:
-        tracks, results = [], data
-        while results:
-            tracks.extend(item[key] for item in results['items'])
-            results = sp.next(results) if results['next'] else None
-
-        return [access_dict_path(item, path, separator) for item in tracks]
+        return [getValueFromNestedDictionary(item, remaining_path, separator) for item in getItemsFromAPICall(data)]
 
 
     # Recurse into the next level with the remaining path
     elif isinstance(data, dict) and key in data:
-        return access_dict_path(data[key], remaining_path, separator) if remaining_path else data[key]
+        return getValueFromNestedDictionary(data[key], remaining_path, separator) if remaining_path else data[key]
 
     # If the key is not found, return None
     else:
         return None
-
-
-    """tracks, results = [], query['tracks']
-        while results:
-            tracks.extend(item['id'] for item in results['items'])
-            results = sp.next(results) if results['next'] else None"""
