@@ -19,10 +19,10 @@ class SpotifyObject(ABC):
         if queryDict is None and not id:
             raise ValueError(f"{self.__class__.__name__} requires either 'queryDict' or 'new_id' to initialize.")
 
-        csvDict = rw.instanceExists(self.storing_path, id)  # Es busca al CSV
-        self.queryDict = csvDict if csvDict else self.adaptPaths(  # Si existeix al CSV
-            queryDict if queryDict else (  # Altrament si s'ha donat queryDict
-                self.fetchFromAPI(id)  # Altrament es busca a la API
+        csvDict = rw.instanceExists(self.storing_path, id)          # Es busca al CSV
+        self.queryDict = csvDict if csvDict else self.adaptPaths(   # Si existeix al CSV
+            queryDict if queryDict else (                           # Sino si s'ha donat queryDict
+                self.fetchFromAPI(id)                               # Altrament es busca a la API
             )
         )
         if not self.queryDict:
@@ -54,11 +54,9 @@ class SpotifyObject(ABC):
             return new_instance
         return None
 
-
     @classmethod
     def adaptPaths(cls, query):
-        for key, value in cls.flattenPaths.items():
-            query[key] = utils.getValueFromNestedDictionary(query, value)
+        query.update({key: utils.getValueFromNestedDictionary(query, value) for key, value in cls.flattenPaths.items()})
         return query
 
 
@@ -139,7 +137,7 @@ class Artist(SpotifyObject):
         return utils.getValueFromNestedDictionary(data=sp.artist_albums(self.id, album_type='album'),
                                                   path='items.id')
 
-# TODO: ATRIBUT SINTETITZAT DE SI ES UNA RECOMENACIÓ(PLAYLIST) DESPRES DE ALBUM....
+
 class Playlist(SpotifyObject):
     storing_path = "playlists.csv"
     flattenPaths = {'followers': "followers.total",
@@ -153,20 +151,27 @@ class Playlist(SpotifyObject):
 
         self.description = self.queryDict['description']
         self.followers = self.queryDict['followers']
-        self.owner = self.queryDict['owner_id']
+        self.owner_id = self.queryDict['owner_id']
 
         del self.queryDict
 
     def __str__(self):
-        return f"{self.name} by {self.owner} and {self.followers} followers"
+        return f"{self.name} by {self.owner_id} and {self.followers} followers"
 
     @staticmethod
     def fetchFromAPI(new_id):
         return sp.playlist(new_id)
 
-    def getTracks(self):
-        return utils.getValueFromNestedDictionary(data=sp.playlist_items(self.id),
-                                                  path='items.track.id')
+    def getTracks(self, timestamps=True):
+        playlistItems = sp.playlist_items(self.id)
+
+        track_ids = utils.getValueFromNestedDictionary(data=playlistItems, path='items.track.id')
+        if timestamps:
+            track_added = [utils.getTimestamp(added_at) for added_at in
+                           utils.getValueFromNestedDictionary(data=playlistItems, path='items.added_at')]
+            return list(zip(track_added, track_ids))
+        else:
+            return track_ids
 
 
 class User(SpotifyObject):
@@ -220,6 +225,23 @@ class PlayedSong(SpotifyObject):
 
     def playedAt(self):
         return datetime.fromtimestamp(int(self.id.split('.')[0])) + timedelta(hours=1)
+
+    def isRecommended(self):
+        # Listening from playlist       ==>     Track added after listening & is in playlist
+        if self.context_type == 'playlist':
+            return any(playlistTrack[0] >= self.id for playlistTrack in Playlist(self.context_id).getTracks()
+                       if playlistTrack[1] == self.track_id)    # Track in playlist
+
+        # Listening from album          ==>     Track not in album tracks
+        elif self.context_type == 'album':
+            return self.track_id not in Album(self.context_id).tracks
+
+        # Listening from artist         ==>     Artist not in song's artists
+        elif self.context_type == 'artist':
+            return self.context_id not in Song(self.track_id).artists_id
+
+        else:
+            print("LISTENING FROM ANOTHER CONTEXT: ", self.context_type)
 
 
 class RecentlyPlayedSongs:

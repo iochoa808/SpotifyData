@@ -8,5 +8,8 @@ def saveRecentlyPlayedSongs():
 
 
 saveRecentlyPlayedSongs()
-
 #recently_played = sp.current_user_recently_played(limit=50)['items'][::-1]
+
+
+#playlist = Playlist(id='6bYdhADwAwPJNXrc2i3nSY')
+#print(playlist.getTracks())
