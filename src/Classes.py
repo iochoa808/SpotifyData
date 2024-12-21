@@ -232,7 +232,7 @@ class RecentlyPlayedSongs:
         artist_ids = list({artist['id'] for item in recently_played for artist in item['track']['artists']})
         playlist_ids = list({item['context']['uri'].split(':')[2] for item in recently_played
                              if item['context']['uri'] != Playlist.likedSongs and item['context']['type'] == 'playlist' and
-                             not item['context']['uri'].split(':')[2].startswith("37i9dQZF1E")})
+                             not item['context']['uri'].split(':')[2].startswith("37i9dQZF1")})
 
         # Batch fetch and store songs, albums, and artists
         [Song.store(song) for batch_ids in utils.batch(song_ids, 50)
