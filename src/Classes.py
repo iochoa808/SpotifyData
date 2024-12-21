@@ -62,21 +62,22 @@ class SpotifyObject(ABC):
 
 class Song(SpotifyObject):
     storing_path = "songs.csv"
-    flattenPaths = {'isrc': "external_ids.isrc",
-                    'artists_id': "artists.id",
-                    'album_id': "album.id",
-                    }
+    flattenPaths = {
+        'isrc': "external_ids.isrc",
+        'artists_id': "artists.id",
+        'album_id': "album.id",
+    }
 
     def __init__(self, id="", queryDict=None):
         super().__init__(id, queryDict)
 
-        self.explicit = self.queryDict['explicit']
-        self.duration_ms = self.queryDict['duration_ms']
-        self.popularity = self.queryDict['popularity']
         self.album_id = self.queryDict['album_id']
         self.artists_id = self.queryDict['artists_id']
-        self.track_number = self.queryDict['track_number']
+        self.duration_ms = self.queryDict['duration_ms']
+        self.explicit = self.queryDict['explicit']
         self.isrc = self.queryDict['isrc']
+        self.popularity = self.queryDict['popularity']
+        self.track_number = self.queryDict['track_number']
 
         del self.queryDict
 
@@ -90,17 +91,20 @@ class Song(SpotifyObject):
 
 class Album(SpotifyObject):
     storing_path = "albums.csv"
-    flattenPaths = {'tracks': "tracks.items.id",
-                    'artists_id': "artists.id",
-                    }
+    flattenPaths = {
+        'tracks': "tracks.items.id",
+        'artists_id': "artists.id",
+        'images': "images.url"
+    }
 
     def __init__(self, id="", queryDict=None):
         super().__init__(id, queryDict)
 
-        self.release_date = self.queryDict['release_date']
         self.artists_id = self.queryDict['artists_id']
         self.tracks = self.queryDict['tracks']
+        self.release_date = self.queryDict['release_date']
         self.popularity = self.queryDict['popularity']
+        self.images = self.queryDict['images']
 
         del self.queryDict
 
@@ -114,7 +118,10 @@ class Album(SpotifyObject):
 
 class Artist(SpotifyObject):
     storing_path = "artists.csv"
-    flattenPaths = {'followers': "followers.total"}
+    flattenPaths = {
+        'followers': "followers.total",
+        'images': "images.url"
+    }
 
     def __init__(self, id="", queryDict=None):
         super().__init__(id, queryDict)
@@ -122,6 +129,7 @@ class Artist(SpotifyObject):
         self.followers = self.queryDict['followers']
         self.genres = self.queryDict['genres']
         self.popularity = self.queryDict['popularity']
+        self.images = self.queryDict['images']
 
         del self.queryDict
 
@@ -140,18 +148,23 @@ class Artist(SpotifyObject):
 
 class Playlist(SpotifyObject):
     storing_path = "playlists.csv"
-    flattenPaths = {'followers': "followers.total",
-                    'owner_id': "owner.id"}
+    flattenPaths = {
+        'followers': "followers.total",
+        'owner_id': "owner.id",
+        'images': "images.url",
+    }
 
     likedSongs = '0000000000000000000000'
-    excludeStore = ['37i9dQZF1E', '0000000000']
+    excludeStore = ['37i9dQZF1', '0000000000']
 
     def __init__(self, id="", queryDict=None):
         super().__init__(id, queryDict)
 
+        self.collaborative = self.queryDict['collaborative']
         self.description = self.queryDict['description']
         self.followers = self.queryDict['followers']
         self.owner_id = self.queryDict['owner_id']
+        self.images = self.queryDict['images']
 
         del self.queryDict
 
@@ -167,7 +180,7 @@ class Playlist(SpotifyObject):
 
         track_ids = utils.getValueFromNestedDictionary(data=playlistItems, path='items.track.id')
         if timestamps:
-            track_added = [utils.getTimestamp(added_at) for added_at in
+            track_added = [utils.toTimestamp(added_at) for added_at in
                            utils.getValueFromNestedDictionary(data=playlistItems, path='items.added_at')]
             return list(zip(track_added, track_ids))
         else:
@@ -177,11 +190,16 @@ class Playlist(SpotifyObject):
 class User(SpotifyObject):
     storing_path = "users.csv"
     name_attribute = 'display_name'
+    flattenPaths = {
+        'followers': "followers.total",
+        'images': "images.url",
+    }
 
     def __init__(self, id="", queryDict=None):
         super().__init__(id, queryDict)
 
         self.followers = self.queryDict['followers']
+        self.images = self.queryDict['images']
 
         del self.queryDict
 
@@ -200,12 +218,15 @@ class User(SpotifyObject):
 class PlayedSong(SpotifyObject):
     storing_path = "recently_played.csv"
     unique_attribute = 'played_at'
-    name_attribute = "track.name"
+    name_attribute = "name"
 
-    flattenPaths = {'track_id': "track.id",
-                    'context_type': "context.type",
-                    'context_id': "context.uri"
-                    }
+    flattenPaths = {
+        'id': "played_at",
+        'name': "track.name",
+        'track_id': "track.id",
+        'context_type': "context.type",
+        'context_id': "context.uri"
+    }
 
     def __init__(self, id="", queryDict=None):
         super().__init__(id, queryDict)
@@ -224,7 +245,7 @@ class PlayedSong(SpotifyObject):
         raise Exception(f"Can't get {__class__.__name__} information from API")
 
     def playedAt(self):
-        return datetime.fromtimestamp(int(self.id.split('.')[0])) + timedelta(hours=1)
+        return utils.toDateTime(self.id)
 
     def isRecommended(self):
         # Listening from playlist       ==>     Track added after listening & is in playlist
@@ -260,7 +281,7 @@ class RecentlyPlayedSongs:
                 **song,
                 'context': {'type': 'playlist', 'uri': Playlist.likedSongs} if not song['context'] else
                 {'type': song['context']['type'], 'uri': song['context']['uri'].split(':')[2]},
-                'played_at': utils.getTimestamp(song['played_at'])
+                'played_at': utils.toTimestamp(song['played_at'])
             }
             for song in recently_played
         ]

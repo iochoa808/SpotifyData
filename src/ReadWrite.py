@@ -18,7 +18,7 @@ def instanceExists(file_path, unique_value, unique_attribute="id"):
             reader = csv.DictReader(file)
             for row in reader:
                 typed_row = {key: parse_value(value) for key, value in row.items()}
-                if row[unique_attribute] == unique_value:
+                if typed_row.get(unique_attribute) == unique_value:
                     return typed_row
 
     # Fallback to a more forgiving encoding
@@ -27,7 +27,7 @@ def instanceExists(file_path, unique_value, unique_attribute="id"):
             reader = csv.DictReader(file)
             for row in reader:
                 typed_row = {key: parse_value(value) for key, value in row.items()}
-                if row[unique_attribute] == unique_value:
+                if row.get(unique_attribute) == unique_value:
                     return typed_row
 
     return False

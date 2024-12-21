@@ -22,8 +22,12 @@ def get_data_path():
     return LOCAL_PATH
 
 
-def getTimestamp(date):
-    return str(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp())
+def toTimestamp(date):
+    return int(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp())
+
+
+def toDateTime(timestamp):
+    return datetime.fromtimestamp(timestamp) + timedelta(hours=1)
 
 
 def getItemsFromAPICall(itemsObj):
@@ -67,3 +71,10 @@ def getValueFromNestedDictionary(data, path, separator='.'):
     # If the key is not found, return None
     else:
         return None
+
+
+def print_keys(d, indent=0):
+    for key, value in d.items():
+        print(" " * indent + str(key))
+        if isinstance(value, dict):  # If the value is a dictionary, go deeper
+            print_keys(value, indent + 4)
