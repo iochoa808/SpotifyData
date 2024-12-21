@@ -7,6 +7,7 @@ GITHUB_PATH = './data'
 LOCAL_PATH = os.path.join(os.path.dirname(__file__), '..', 'data')
 LOCAL_OFFSET = timedelta(hours=1)
 
+
 # Utility function to split a list into batches
 def batch(iterable, n=20):
     it = iter(iterable)
@@ -47,14 +48,21 @@ def getValueFromNestedDictionary(data, path, separator='.'):
     if isinstance(data, list):
         return [getValueFromNestedDictionary(item, path, separator) for item in data]
 
-    # Recurse into the next level that is in a list with the remaining path
-    elif isinstance(data, dict) and key in data and 'next' in data:
-        return [getValueFromNestedDictionary(item, remaining_path, separator) for item in getItemsFromAPICall(data)]
-
-
     # Recurse into the next level with the remaining path
     elif isinstance(data, dict) and key in data:
-        return getValueFromNestedDictionary(data[key], remaining_path, separator) if remaining_path else data[key]
+
+        # Get all the items from Spotipy and recurse into the next level with the remaining path
+        if 'next' in data:
+            keys = remaining_path.split(separator, 1)
+            key = keys[0]
+            remaining_path = keys[1] if len(keys) > 1 else None
+
+            return [getValueFromNestedDictionary(item[key], remaining_path, separator)
+                    for item in getItemsFromAPICall(data)]
+
+        # Recurse into the next level with the remaining path
+        else:
+            return getValueFromNestedDictionary(data[key], remaining_path, separator) if remaining_path else data[key]
 
     # If the key is not found, return None
     else:
