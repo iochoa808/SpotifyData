@@ -1272,3 +1272,24 @@ id,name,explicit,duration_ms,popularity,album,artists,track_number,isrc
 4GndOj8yctyxmd5Yx2v00m,Longcat,False,107844,38,4JdePMYeuoe34rqQ1D19K0,['43JlwunhXm1oqdKyOa2Z9Y'],7,GBCFB2400124
 22vPyvsF3j3uCWT8t7zlxj,Flight Of The Tiger Lily,False,35133,32,456WeVeZk38VJuqg2sL7QG,['43JlwunhXm1oqdKyOa2Z9Y'],1,GBCFB2100023
 3coTA2jcznbAQnBPEjQYmF,Leap Frog,False,84320,30,3s7dB6EHrYkaWjzfVbZfCo,['43JlwunhXm1oqdKyOa2Z9Y'],3,USQX91301409
+36HmaGr3Q3pRwT8Q9HPFLZ,Jekyll,False,333213,36,3qzmmmRmVBiOuMvrerfW4z,['43JlwunhXm1oqdKyOa2Z9Y'],10,USSM11500141
+0IJRZMfavEmJOx5AiuDSlm,Blood And Marrow,False,209960,31,456WeVeZk38VJuqg2sL7QG,['43JlwunhXm1oqdKyOa2Z9Y'],12,GBCFB2100034
+7BAvjQiEepWSzmZNCi8u36,Sphynx Gate / The World It Softly Lulls - Live,False,412981,26,2qbRl1ohoAYwDBIIMOITIe,['43JlwunhXm1oqdKyOa2Z9Y'],2,USQX91302312
+5ijoR5YYENoi96iWEtTweq,Intro - ReBirth,False,57468,43,3oloiyQgCoTq0t155i0anl,['3L3oWS9VsgTRBF7HFHdOEz'],1,FRX762001539
+3YswgQZs2WbGKAUZX4Jorl,Journey To The Crystal Tomb,False,32857,20,42p3rjbjS4vHm7BHv0sSFh,['43JlwunhXm1oqdKyOa2Z9Y'],1,GBCFB2100598
+6PzV5vEnJSng3LmZ23Y7DB,Cinnamon Temple,True,200664,42,4JdePMYeuoe34rqQ1D19K0,['43JlwunhXm1oqdKyOa2Z9Y'],10,GBCFB2400127
+7bjWAx2V9fC2rfb47FvtUY,Dreamboat,False,131337,40,4JdePMYeuoe34rqQ1D19K0,['43JlwunhXm1oqdKyOa2Z9Y'],1,GBCFB2400119
+0sl7l4BJW9ZbnJpeg302FN,Chasin (Afterlude) [feat. Saara Maria],False,60083,44,2QDH2m1uJk9A2BVcl1I8K3,['1TGyEDXHDYwHNB012Otfhj'],5,uscgj1340493
+758cTmBkmJ16ofqtotWZak,Cycles (feat. Hiatus Kaiyote),False,229380,27,52bCugQ0xPQgbh4hKeJZi0,"['0XzVyZOZF7FIsQ7VbBZ9Yy', '43JlwunhXm1oqdKyOa2Z9Y']",9,GB4HG1900010
+7wlcweEsneQgizqNOrUqJE,Shaolin Monk Motherfunk,False,350533,37,3qzmmmRmVBiOuMvrerfW4z,['43JlwunhXm1oqdKyOa2Z9Y'],2,USSM11500134
+6Gq99VdfbBlsw9qlAZp6x4,Straight Talker,False,201734,50,3QIrrLWq2wnMdScMx1YXeS,['0PgYKqH7ohfAm9LFgWjpl8'],1,GBENL2203214
+0u19PefWd2fPyhPL7grgq5,Trance - ReBirth,False,97790,46,3oloiyQgCoTq0t155i0anl,"['3L3oWS9VsgTRBF7HFHdOEz', '1djeOKOhlMmpiF6gyGVUcu']",6,FRX762001543
+5S7CzLFS0sKng7rGBgyjEC,Ahh,False,99653,41,3DPTrgC3Ee2cZN6lUGWdaq,['2BBIIe7eBYThLcIrZGZb3I'],12,DEQ022001937
+0iI2cOHpX6xmwKD15Q5ynd,Breakfast in Bed,True,116059,66,4ASozZrX3WMIJplKcfRJYf,['1kh0AypxF3CxMMzmQyif2S'],6,USUYG1243904
+039XpwmOfnPrbxuuDcOOpB,Rainbow Rhodes,False,113386,29,3s7dB6EHrYkaWjzfVbZfCo,['43JlwunhXm1oqdKyOa2Z9Y'],8,USQX91301414
+0NvvlnAniNYVF7FPNAD8CY,Tidal Wave Outro,False,104880,50,5ciBtE0wpwlIew7zvUKmd2,"['1uiEZYehlNivdK3iQyAbye', '2rspptKP0lPBdlJJAJHqht']",3,UKDBV2000014
+28YWs6Ae6slT1pvv13FrG9,Autumn,False,101920,36,1DNEMZSWTk1cg20cmFAtlZ,['3L3oWS9VsgTRBF7HFHdOEz'],2,US8JA1824002
+0FTpFi1BlqoBVELlh7jK50,Le Départ,False,59836,70,0e4dBWmBHPevyfC9Zle4mv,['5RRfTrwXUGYiBB0DMV4hyh'],1,FRD9M2201250
+0J9uaeOd7GZi9MTybtqAD4,Self,False,199615,67,6aWsHOGYXoEY1kxnxGMLwU,['3ETLPQkcEd7z4k3IbZmXMq'],1,UKMEH2300190
+5crkOzXbUZ5SOSkSat7g4T,Lou's Tune,False,102634,70,7qjmrPRpj4ppzd6rQRLj0A,"['0AggcZhPMyJglaaruoxJpN', '1otDUlTEBjcyDQg6CkHRaV']",1,DEWA72100079
+4ZTC6KvnQxloiwmT0Yhypy,Life Will Be,False,198200,65,67DWn1tZ245gendegv7Ioz,['3ETLPQkcEd7z4k3IbZmXMq'],9,UKMEH2300207
