@@ -2,7 +2,8 @@ from Spotify import sp
 import ReadWrite as rw
 import utils
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
+import database as db
+from collections import defaultdict
 
 
 # Abstract class
@@ -13,16 +14,17 @@ class SpotifyObject(ABC):
     unique_attribute = 'id'
     name_attribute = 'name'
     flattenPaths = {}
+    tables = {}
 
     def __init__(self, id="", queryDict=None):
         # Use queryDict if provided, otherwise get data with new_id
         if queryDict is None and not id:
             raise ValueError(f"{self.__class__.__name__} requires either 'queryDict' or 'new_id' to initialize.")
 
-        csvDict = rw.instanceExists(self.storing_path, id)          # Es busca al CSV
-        self.queryDict = csvDict if csvDict else self.adaptPaths(   # Si existeix al CSV
-            queryDict if queryDict else (                           # Sino si s'ha donat queryDict
-                self.fetchFromAPI(id)                               # Altrament es busca a la API
+        csvDict = rw.instanceExists(self.storing_path, id)  # Es busca al CSV
+        self.queryDict = csvDict if csvDict else self.adaptPaths(  # Si existeix al CSV
+            queryDict if queryDict else (  # Sino si s'ha donat queryDict
+                self.fetchFromAPI(id)  # Altrament es busca a la API
             )
         )
         if not self.queryDict:
@@ -56,8 +58,64 @@ class SpotifyObject(ABC):
 
     @classmethod
     def adaptPaths(cls, query):
-        query.update({key: utils.getValueFromNestedDictionary(query, value) for key, value in cls.flattenPaths.items()})
+        query.update({key: utils.getValueFromNestedDictionary(query, value)
+                      for key, value in cls.flattenPaths.items()
+                      if key not in query})
         return query
+
+    def saveToDB(self):
+        savedRows = 0
+        cursor = db.conn.cursor()
+
+        for table, mappings in self.tables.items():
+            rows = []
+            for key, value in mappings.items():
+                if value in self.__dict__:
+                    data = self.__dict__[value]
+
+                    # If the data is a list, expand it into multiple rows
+                    if isinstance(data, list):
+                        if not rows:  # Initialize rows if empty
+                            rows = [{key: item} for item in data]
+                        else:  # Expand existing rows with the new list items
+                            rows = [{**row, key: item} for row in rows for item in data]
+                    else:
+                        if not rows:  # Initialize rows if empty
+                            rows = [{key: data}]
+                        else:  # Add single value to all existing rows
+                            for row in rows:
+                                row[key] = data
+
+            for row in rows:
+                sqlQuery = f"""             
+                            INSERT OR REPLACE INTO {table} 
+                            VALUES({", ".join([f":{column}" for column in row.keys()])})"""
+                cursor.execute(sqlQuery, row)
+                savedRows += 1
+
+        return savedRows
+
+    @classmethod
+    def getFromDB(cls, id):
+        cursor = db.conn.cursor()
+
+        # Fetch main table
+        sqlQuery = f"SELECT * FROM {list(cls.tables.keys())[0]} WHERE id=:id"
+        cursor.execute(sqlQuery, {'id': id})
+        queryDict = dict(cursor.fetchone())
+
+        # Fetch junction tables
+        for i, (table, attributes) in enumerate(cls.tables.items()):
+            if i > 0:
+                keys = attributes.keys()
+                thisId = next(s for s in keys if cls.__name__.lower() in s)
+                requestItems = [key for key in attributes if cls.__name__.lower() not in key]
+                cursor.execute(f"SELECT * FROM {table} WHERE {thisId}=:id", {'id': id})
+                result = {cls.tables[table].get(key, key): [row[key] for row in cursor.fetchall()] for key in
+                          requestItems}
+                queryDict.update(result)
+
+        return cls(queryDict=queryDict)
 
 
 class Song(SpotifyObject):
@@ -67,6 +125,12 @@ class Song(SpotifyObject):
         'artists_id': "artists.id",
         'album_id': "album.id",
     }
+    # {Table: {tableAttrib: classAttrib}} || For every table, correspondance of tableVar-classVar
+    tables = {"songs": {"id": "id", "name": "name", "album_id": "album_id",
+                        "duration_ms": "duration_ms", "explicit": "explicit",
+                        "isrc": "isrc", "popularity": "popularity", "track_number": "track_number"},
+              "song_artists": {"song_id": "id", "artist_id": "artists_id"}
+              }
 
     def __init__(self, id="", queryDict=None):
         super().__init__(id, queryDict)
@@ -92,19 +156,22 @@ class Song(SpotifyObject):
 class Album(SpotifyObject):
     storing_path = "albums.csv"
     flattenPaths = {
-        'tracks': "tracks.items.id",
+        'track_list': "tracks.items.id",
         'artists_id': "artists.id",
-        'images': "images.url"
     }
+    tables = {'albums': {'id': 'id', 'name': 'name', 'release_date': 'release_date', 'popularity': 'popularity'},
+              'album_artists': {'album_id': 'id', 'artist_id': 'artists_id'},
+              'album_tracks': {'album_id': 'id', 'track_id': 'track_list'}
+              }
 
     def __init__(self, id="", queryDict=None):
         super().__init__(id, queryDict)
 
         self.artists_id = self.queryDict['artists_id']
-        self.tracks = self.queryDict['tracks']
+        self.track_list = self.queryDict['track_list']
         self.release_date = self.queryDict['release_date']
         self.popularity = self.queryDict['popularity']
-        self.images = self.queryDict['images']
+        # self.images = self.queryDict['images'] TODO: GUARDARLES
 
         del self.queryDict
 
@@ -119,26 +186,32 @@ class Album(SpotifyObject):
 class Artist(SpotifyObject):
     storing_path = "artists.csv"
     flattenPaths = {
-        'followers': "followers.total",
-        'images': "images.url"
+        # 'images': "images.url"
     }
+    tables = {'artists': {'id': 'id', 'name': 'name', 'genres': 'genres', 'popularity': 'popularity'}}
 
     def __init__(self, id="", queryDict=None):
         super().__init__(id, queryDict)
 
-        self.followers = self.queryDict['followers']
-        self.genres = self.queryDict['genres']
+        self.genres = ','.join(self.queryDict['genres']) \
+            if isinstance(self.queryDict['genres'], list) \
+            else self.queryDict['genres']  # TODO: FILL GENRES WITH RELATED ARTISTS
         self.popularity = self.queryDict['popularity']
-        self.images = self.queryDict['images']
+        # self.images = self.queryDict['images'] TODO: GUARDARLES
 
         del self.queryDict
 
     def __str__(self):
-        return f"{self.name} with {self.followers} followers"
+        return f"{self.name} plays {self.genres} genres"
 
     @staticmethod
     def fetchFromAPI(new_id):
         return sp.artist(new_id)
+
+    def getTables(self):
+        return {'artists': [{'id': self.id, 'name': self.name, 'followers': self.followers,
+                             'genres': self.genres, 'popularity': self.popularity}],
+                }
 
     # TODO: BUG DE SPOTIPY | ALBUM_TYPE NO DISCRIMINA ELS TIPUS (ALBUM_TYPE)
     def getAlbums(self):
@@ -151,8 +224,11 @@ class Playlist(SpotifyObject):
     flattenPaths = {
         'followers': "followers.total",
         'owner_id': "owner.id",
-        'images': "images.url",
+        # 'images': "images.url",
     }
+    tables = {'playlists': {'id': 'id', 'name': 'name', 'description': 'description',
+                            'collaborative': 'collaborative', 'owner_id': 'owner_id'}
+              }
 
     likedSongs = '0000000000000000000000'
     excludeStore = ['37i9dQZF1', '0000000000']
@@ -160,16 +236,15 @@ class Playlist(SpotifyObject):
     def __init__(self, id="", queryDict=None):
         super().__init__(id, queryDict)
 
-        self.collaborative = self.queryDict['collaborative']
         self.description = self.queryDict['description']
-        self.followers = self.queryDict['followers']
+        self.collaborative = self.queryDict['collaborative']
         self.owner_id = self.queryDict['owner_id']
-        self.images = self.queryDict['images']
+        # self.images = self.queryDict['images'] TODO: GUARDARLES
 
         del self.queryDict
 
     def __str__(self):
-        return f"{self.name} by {self.owner_id} and {self.followers} followers"
+        return f"{self.name} by {self.owner_id}"
 
     @staticmethod
     def fetchFromAPI(new_id):
@@ -192,14 +267,13 @@ class User(SpotifyObject):
     name_attribute = 'display_name'
     flattenPaths = {
         'followers': "followers.total",
-        'images': "images.url",
+        # 'images': "images.url",
     }
 
     def __init__(self, id="", queryDict=None):
         super().__init__(id, queryDict)
 
-        self.followers = self.queryDict['followers']
-        self.images = self.queryDict['images']
+        # self.images = self.queryDict['images'] TODO: GUARDARLES
 
         del self.queryDict
 
@@ -251,7 +325,7 @@ class PlayedSong(SpotifyObject):
         # Listening from playlist       ==>     Track added after listening & is in playlist
         if self.context_type == 'playlist':
             return any(playlistTrack[0] >= self.id for playlistTrack in Playlist(self.context_id).getTracks()
-                       if playlistTrack[1] == self.track_id)    # Track in playlist
+                       if playlistTrack[1] == self.track_id)  # Track in playlist
 
         # Listening from album          ==>     Track not in album tracks
         elif self.context_type == 'album':
@@ -289,9 +363,12 @@ class RecentlyPlayedSongs:
         # Collect sets of all IDs for fetching
         song_ids = list(set(utils.getValueFromNestedDictionary(recently_played, 'track.id')))
         album_ids = list(set(utils.getValueFromNestedDictionary(recently_played, 'track.album.id')))
-        artist_ids = list(set([item for lst_id in utils.getValueFromNestedDictionary(recently_played, 'track.artists.id') for item in lst_id]))
+        artist_ids = list(
+            set([item for lst_id in utils.getValueFromNestedDictionary(recently_played, 'track.artists.id') for item in
+                 lst_id]))
         playlist_ids = list({item['context']['uri'] for item in recently_played
-                             if not any(item['context']['uri'].startswith(exclude) for exclude in Playlist.excludeStore) and
+                             if not any(
+                item['context']['uri'].startswith(exclude) for exclude in Playlist.excludeStore) and
                              item['context']['type'] == 'playlist'})
 
         # Batch fetch and store songs, albums, and artists
