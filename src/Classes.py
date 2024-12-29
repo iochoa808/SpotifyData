@@ -1,212 +1,257 @@
 from Spotify import sp
 import ReadWrite as rw
 import utils
+from abc import ABC, abstractmethod
+from datetime import datetime, timedelta
 
 
-class Song:
-    file_path = "songs.csv"
+# Abstract class
+class SpotifyObject(ABC):
+    storing_path = None
 
-    def __init__(self, new_id="", queryDict=None):
-        # Initialize queryDict as an empty dictionary if not provided
-        if queryDict is None:
-            queryDict = {}
-        # Raise ValueError if neither are provided
-        if not new_id and not queryDict:
-            raise ValueError("SONG NOT INITIATED PROPERLY")
-        # If id is provided
-        if new_id:
-            queryDict = sp.track(new_id)
+    # Both can be dictionary paths separated by '.'
+    unique_attribute = 'id'
+    name_attribute = 'name'
+    flattenPaths = {}
 
-        self.id = queryDict['id']
-        self.name = queryDict['name']
-        self.explicit = queryDict['explicit']
-        self.duration_ms = queryDict['duration_ms']
-        self.popularity = queryDict['popularity']
-        self.album = queryDict['album']['id']
-        self.artists = [artist['id'] for artist in queryDict['artists']]
-        self.track_number = queryDict['track_number']
-        self.isrc = queryDict['external_ids']['isrc']
+    def __init__(self, id="", queryDict=None):
+        # Use queryDict if provided, otherwise get data with new_id
+        if queryDict is None and not id:
+            raise ValueError(f"{self.__class__.__name__} requires either 'queryDict' or 'new_id' to initialize.")
 
-    def __str__(self):
-        return f"{self.name} by {', '.join(artist for artist in self.artists)}"
+        csvDict = rw.instanceExists(self.storing_path, id)          # Es busca al CSV
+        self.queryDict = csvDict if csvDict else self.adaptPaths(   # Si existeix al CSV
+            queryDict if queryDict else (                           # Sino si s'ha donat queryDict
+                self.fetchFromAPI(id)                               # Altrament es busca a la API
+            )
+        )
+        if not self.queryDict:
+            raise ValueError(f"Query incorrecta de {self.__class__.__name__}")
 
-    @staticmethod
-    def store(songDict):
-        if not rw.instanceExists(Song.file_path, songDict['id']):
-            new_song = Song(queryDict=songDict)
-            rw.saveInstanceToCSV(new_song, Song.file_path)
-            return new_song
+        # Id
+        self.id = utils.getValueFromNestedDictionary(self.queryDict, self.unique_attribute)
+        if not self.id:
+            raise ValueError(f"No unique attribute has been found in {self.__class__.__name__}")
 
-
-class Album:
-    file_path = "albums.csv"
-
-    def __init__(self, new_id="", queryDict=None):
-        # Initialize queryDict as an empty dictionary if not provided
-        if queryDict is None:
-            queryDict = {}
-        # Raise ValueError if neither are provided
-        if not new_id and not queryDict:
-            raise ValueError("ALBUM NOT INITIATED PROPERLY")
-        # If id is provided
-        if new_id:
-            queryDict = sp.album(new_id)
-
-        self.id = queryDict['id']
-        self.name = queryDict['name']
-        self.total_tracks = queryDict['total_tracks']
-        self.release_date = queryDict['release_date']
-        self.artists = [artist['id'] for artist in queryDict['artists']]
-
-    def __str__(self):
-        return f"{self.name} by {', '.join(artist for artist in self.artists)}"
-
-    def getSongs(self, ofst=0):
-        if ofst > self.total_tracks:
-            return []
-        # Get items of the album
-        new_tracks = [
-            Song(queryDict=(track | {'album': {'id': self.id}}))
-            for track in sp.album_tracks(self.id, limit=50, offset=ofst)['items']
-        ]
-
-        return new_tracks + self.getSongs(ofst=ofst + 50)
+        # Name
+        self.name = utils.getValueFromNestedDictionary(self.queryDict, self.name_attribute)
 
     @staticmethod
-    def store(albumDict):
-        if not rw.instanceExists(Album.file_path, albumDict['id']):
-            new_album = Album(queryDict=albumDict)
-            rw.saveInstanceToCSV(new_album, Album.file_path)
-            return new_album
+    @abstractmethod
+    def fetchFromAPI(new_id):
+        # Abstract method to fetch data using new_id. Subclasses must implement this method.
+        pass
+
+    @classmethod
+    def store(cls, objDict):
+        # Checking if cls.storing_path has been declared
+        if cls.storing_path is None:
+            raise ValueError(f"{cls.__name__} must define a 'storing_path'.")
+
+        if not rw.instanceExists(cls.storing_path, unique_value=objDict.get(cls.unique_attribute)):
+            new_instance = cls(queryDict=objDict)  # Dynamically call the subclass constructor
+            rw.saveInstanceToCSV(new_instance, cls.storing_path)
+            return new_instance
+        return None
+
+    @classmethod
+    def adaptPaths(cls, query):
+        query.update({key: utils.getValueFromNestedDictionary(query, value) for key, value in cls.flattenPaths.items()})
+        return query
 
 
-class Artist:
-    file_path = "artists.csv"
+class Song(SpotifyObject):
+    storing_path = "songs.csv"
+    flattenPaths = {
+        'isrc': "external_ids.isrc",
+        'artists_id': "artists.id",
+        'album_id': "album.id",
+    }
 
-    def __init__(self, new_id="", queryDict=None):
-        # Initialize queryDict as an empty dictionary if not provided
-        if queryDict is None:
-            queryDict = {}
-        # Raise ValueError if neither are provided
-        if not new_id and not queryDict:
-            raise ValueError("ARTIST NOT INITIATED PROPERLY")
-        # If id is provided
-        if new_id:
-            queryDict = sp.artist(new_id)
+    def __init__(self, id="", queryDict=None):
+        super().__init__(id, queryDict)
 
-        self.id = queryDict['id']
-        self.name = queryDict['name']
-        self.followers = queryDict['followers']['total']
-        self.genres = queryDict['genres']
-        self.popularity = queryDict['popularity']
-        self.total_albums = sp.artist_albums(self.id)['total']
+        self.album_id = self.queryDict['album_id']
+        self.artists_id = self.queryDict['artists_id']
+        self.duration_ms = self.queryDict['duration_ms']
+        self.explicit = self.queryDict['explicit']
+        self.isrc = self.queryDict['isrc']
+        self.track_number = self.queryDict['track_number']
+
+        del self.queryDict
 
     def __str__(self):
-        return self.name
-
-    def getAlbums(self, ofst=0):
-        if ofst > self.total_albums:
-            return []
-        # Get items of the album
-        new_albums = [
-            Album(queryDict=album)
-            for album in sp.artist_albums(self.id, include_groups='album,single')['items']
-        ]
-
-        return new_albums + self.getAlbums(ofst=ofst + 20)
+        return f"{self.name} by {', '.join(artist for artist in self.artists_id)}"
 
     @staticmethod
-    def store(artistDict):
-        if not rw.instanceExists(Artist.file_path, artistDict['id']):
-            new_artist = Artist(queryDict=artistDict)
-            rw.saveInstanceToCSV(new_artist, Artist.file_path)
-            return new_artist
+    def fetchFromAPI(new_id):
+        return sp.track(new_id)
 
 
-class Playlist:
-    file_path = "playlists.csv"
+class Album(SpotifyObject):
+    storing_path = "albums.csv"
+    flattenPaths = {
+        'tracks': "tracks.items.id",
+        'artists_id': "artists.id",
+        'images': "images.url"
+    }
+
+    def __init__(self, id="", queryDict=None):
+        super().__init__(id, queryDict)
+
+        self.artists_id = self.queryDict['artists_id']
+        self.tracks = self.queryDict['tracks']
+        self.release_date = self.queryDict['release_date']
+        self.images = self.queryDict['images']
+
+        del self.queryDict
+
+    def __str__(self):
+        return f"{self.name} by {', '.join(artist for artist in self.artists_id)}"
+
+    @staticmethod
+    def fetchFromAPI(new_id):
+        return sp.album(new_id)
+
+
+class Artist(SpotifyObject):
+    storing_path = "artists.csv"
+    flattenPaths = {
+        'images': "images.url"
+    }
+
+    def __init__(self, id="", queryDict=None):
+        super().__init__(id, queryDict)
+
+        self.genres = self.queryDict['genres']
+        self.images = self.queryDict['images']
+
+        del self.queryDict
+
+    def __str__(self):
+        return f"{self.name}"
+
+    @staticmethod
+    def fetchFromAPI(new_id):
+        return sp.artist(new_id)
+
+    # TODO: BUG DE SPOTIPY | ALBUM_TYPE NO DISCRIMINA ELS TIPUS (ALBUM_TYPE)
+    def getAlbums(self):
+        return utils.getValueFromNestedDictionary(data=sp.artist_albums(self.id, album_type='album'),
+                                                  path='items.id')
+
+
+class Playlist(SpotifyObject):
+    storing_path = "playlists.csv"
+    flattenPaths = {
+        'owner_id': "owner.id",
+        'images': "images.url",
+    }
+
     likedSongs = '0000000000000000000000'
+    excludeStore = ['37i9dQZF1', '0000000000']
 
-    def __init__(self, new_id="", queryDict=None):
-        # Initialize queryDict as an empty dictionary if not provided
-        if queryDict is None:
-            queryDict = {}
-        # Raise ValueError if neither are provided
-        if not new_id and not queryDict:
-            raise ValueError("PLAYLIST NOT INITIATED PROPERLY")
-        # If id is provided
-        if new_id:
-            queryDict = sp.playlist(new_id)
+    def __init__(self, id="", queryDict=None):
+        super().__init__(id, queryDict)
 
-        self.id = queryDict['id']
-        self.name = queryDict['name']
-        self.description = queryDict['description']
-        self.followers = queryDict['followers']
-        self.owner = queryDict['owner']['id']
-        self.total_tracks = queryDict['tracks']['total']
+        self.collaborative = self.queryDict['collaborative']
+        self.description = self.queryDict['description']
+        self.owner_id = self.queryDict['owner_id']
+        self.images = self.queryDict['images']
+
+        del self.queryDict
 
     def __str__(self):
-        return f"{self.name} by {self.owner} with {self.total_tracks} songs"
-
-    def getSongs(self, ofst=0):
-        if ofst > self.total_tracks:
-            return []
-        # Get items of the album
-        new_tracks = [
-            {'added_at': track['added_at'], 'track': Song(queryDict=track['track'])}
-            for track in sp.playlist_items(self.id, limit=100, offset=ofst)['items']
-        ]
-
-        return new_tracks + self.getSongs(ofst=ofst + 100)
+        return f"{self.name} by {self.owner_id}"
 
     @staticmethod
-    def store(playlistDict):
-        if not rw.instanceExists(Playlist.file_path, playlistDict['id']):
-            new_Playlist = Playlist(queryDict=playlistDict)
-            rw.saveInstanceToCSV(new_Playlist, Playlist.file_path)
-            return new_Playlist
+    def fetchFromAPI(new_id):
+        return sp.playlist(new_id)
+
+    def getTracks(self, timestamps=True):
+        playlistItems = sp.playlist_items(self.id)
+
+        track_ids = utils.getValueFromNestedDictionary(data=playlistItems, path='items.track.id')
+        if timestamps:
+            track_added = [utils.toTimestamp(added_at) for added_at in
+                           utils.getValueFromNestedDictionary(data=playlistItems, path='items.added_at')]
+            return list(zip(track_added, track_ids))
+        else:
+            return track_ids
 
 
-class User:
-    def __init__(self, new_id="", queryDict=None):
-        # Initialize queryDict as an empty dictionary if not provided
-        if queryDict is None:
-            queryDict = {}
-        # Raise ValueError if neither are provided
-        if not new_id and not queryDict:
-            raise ValueError("USER NOT INITIATED PROPERLY")
-        # If id is provided
-        if new_id:
-            queryDict = sp.user(id)
+class User(SpotifyObject):
+    storing_path = "users.csv"
+    flattenPaths = {
+        'name': 'display_name',
+        'images': "images.url",
+    }
 
-        self.id = queryDict['id']
-        self.name = queryDict['display_name']
-        self.followers = queryDict['followers']
+    def __init__(self, id="", queryDict=None):
+        super().__init__(id, queryDict)
+
+        self.images = self.queryDict['images']
+
+        del self.queryDict
 
     def __str__(self):
         return self.name
 
+    @staticmethod
+    def fetchFromAPI(new_id):
+        return sp.user(new_id)
 
-class PlayedSong:
-    file_path = "recently_played.csv"
+    def getPlaylists(self):
+        return utils.getValueFromNestedDictionary(data=sp.user_playlists(self.id), path='items.id')
 
-    def __init__(self, playedDict):
-        self.played_at = playedDict['played_at']
-        self.track = playedDict['track']['id']
-        self.context = {
-            'type': playedDict['context']['type'],
-            'id': playedDict['context']['uri'].split(':')[2]
-        }
+
+class PlayedSong(SpotifyObject):
+    storing_path = "recently_played.csv"
+
+    flattenPaths = {
+        'name': "track.name",
+        'track_id': "track.id",
+        'track_popularity': "track.popularity",
+        'context_type': "context.type",
+        'context_id': "context.uri"
+    }
+
+    def __init__(self, id="", queryDict=None):
+        super().__init__(id, queryDict)
+
+        self.track_id = self.queryDict['track_id']
+        self.track_popularity = self.queryDict['track_popularity']
+        self.context_type = self.queryDict['context_type']
+        self.context_id = self.queryDict['context_id']
+
+        del self.queryDict
 
     def __str__(self):
-        return f"[{self.played_at}] {self.track} played from the {self.context['type']} {self.context['id']}"
+        return f"[{self.playedAt()}] {self.name} played from the {self.context_type} {self.context_id}"
 
     @staticmethod
-    def store(playedSongDict):
-        if not rw.instanceExists(PlayedSong.file_path, playedSongDict['played_at'], unique_attribute='played_at'):
-            new_playedSong = PlayedSong(playedDict=playedSongDict)
-            rw.saveInstanceToCSV(new_playedSong, PlayedSong.file_path)
-            return new_playedSong
+    def fetchFromAPI(new_id):
+        raise Exception(f"Can't get {__class__.__name__} information from API")
+
+    def playedAt(self):
+        return utils.toDateTime(self.id)
+
+    def isRecommended(self):    # TODO: PROVAR SI FUNCIONA EN CONTEXT
+        # Listening from playlist       ==>     Track added after listening & is in playlist
+        if self.context_type == 'playlist':
+            return any(playlistTrack[0] >= self.id for playlistTrack in Playlist(self.context_id).getTracks()
+                       if playlistTrack[1] == self.track_id)    # Track in playlist
+
+        # Listening from album          ==>     Track not in album tracks
+        elif self.context_type == 'album':
+            return self.track_id not in Album(self.context_id).tracks
+
+        # Listening from artist         ==>     Artist not in song's artists
+        elif self.context_type == 'artist':
+            return self.context_id not in Song(self.track_id).artists_id
+
+        else:
+            print("LISTENING FROM ANOTHER CONTEXT: ", self.context_type)
 
 
 class RecentlyPlayedSongs:
@@ -219,20 +264,24 @@ class RecentlyPlayedSongs:
         # Retrieve recently played songs
         recently_played = sp.current_user_recently_played(limit=50)['items'][::-1]
 
-        # Tractar si context no existeix (Liked songs)
+        # Tractar recently played
         recently_played = [
-            {**song, 'context': {'type': 'playlist', 'uri': f"::{Playlist.likedSongs}"}}
-            if not song['context'] else song
+            {
+                **song,
+                'context': {'type': 'playlist', 'uri': Playlist.likedSongs} if not song['context'] else
+                {'type': song['context']['type'], 'uri': song['context']['uri'].split(':')[2]},
+                'id': utils.toTimestamp(song['played_at'])
+            }
             for song in recently_played
         ]
 
         # Collect sets of all IDs for fetching
-        song_ids = list({item['track']['id'] for item in recently_played})
-        album_ids = list({item['track']['album']['id'] for item in recently_played})
-        artist_ids = list({artist['id'] for item in recently_played for artist in item['track']['artists']})
-        playlist_ids = list({item['context']['uri'].split(':')[2] for item in recently_played
-                             if item['context']['uri'] != Playlist.likedSongs and item['context']['type'] == 'playlist' and
-                             not item['context']['uri'].split(':')[2].startswith("37i9dQZF1")})
+        song_ids = list(set(utils.getValueFromNestedDictionary(recently_played, 'track.id')))
+        album_ids = list(set(utils.getValueFromNestedDictionary(recently_played, 'track.album.id')))
+        artist_ids = list(set([item for lst_id in utils.getValueFromNestedDictionary(recently_played, 'track.artists.id') for item in lst_id]))
+        playlist_ids = list({item['context']['uri'] for item in recently_played
+                             if not any(item['context']['uri'].startswith(exclude) for exclude in Playlist.excludeStore) and
+                             item['context']['type'] == 'playlist'})
 
         # Batch fetch and store songs, albums, and artists
         [Song.store(song) for batch_ids in utils.batch(song_ids, 50)
@@ -243,6 +292,8 @@ class RecentlyPlayedSongs:
          for artist in sp.artists(batch_ids)['artists']]
         [Playlist.store(sp.playlist(playlist))
          for playlist in playlist_ids if playlist != Playlist.likedSongs]
+
+
 
         # Return the new playedSongs
         return [song for song in (PlayedSong.store(item) for item in recently_played) if song is not None]
