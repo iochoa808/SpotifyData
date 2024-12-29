@@ -49,3 +49,6 @@ id,name,album_id,artists_id,duration_ms,explicit,isrc,track_number
 5TqJ7Y1LmaJtrQfkRwTFCE,Sticks & Bricks,6I2SUr0MolRUiDEcZAbSWm,['4NiJW4q9ichVqL1aUsgGAN'],196653,True,USVIC1060301,1
 76LGCP0g9nVknR7HD2Jjyp,Not The American Average,5TCwGgyw8ZXXyKIcUFCj47,['1caBfBEapzw8z2Qz9q0OaQ'],279226,True,USYFZ0902209,9
 0rWIAbUoOL67JAHxxGRKx7,Puzzles,4LULr4Lz6obf9eL2BA0tiJ,['7I95CM75shzCjHuTzrepjM'],161560,True,UKGV82200005,1
+0SuhR57lVDnnxWQdfsXvuR,PIRILAMPO,249ymAktXFSKOCAe1IRy5i,"['5932gYdqLCu1ftKVXf1PO4', '3NP4jJcW3R6qO6rbtnH0wn']",290769,False,GBCFB2100562,4
+5viZ8CLipufc1Q1NXpMRNN,AmEN! (feat. Lil Uzi Vert and Daryl Palumbo of Glassjaw),1n9nqA87ulG7FxxVrpULRA,"['1Ffb6ejR6Fe5IamqA5oRUF', '4O15NlyKLIASxsJ0PrXPfz', '6GcRo52zMhZXYOsEkMyMrX', '7nt6S4klYHg4I7Q4lTSmc0']",189552,True,GBARL2300647,1
+1COOaXjTMj3KF7BTNF4rn6,Inexplicable,5n410n5GCO2cb0PmN0uxTJ,['3VvmUsYPzFheK2wJGKcXxp'],250053,False,GBFEK1700388,7
