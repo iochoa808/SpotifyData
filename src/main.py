@@ -2,10 +2,11 @@ from Classes import *
 import json
 
 
-def saveRecentlyPlayedSongs():
+def saveRecentlyPlayedSongs(show=True):
     recentlyPlayedSongs = RecentlyPlayedSongs.saveRecentlyPlayedSongs()
-    [print(i + 1, song) for i, song in enumerate(recentlyPlayedSongs)]
-    print(f"\n{len(recentlyPlayedSongs)} new songs stored")
+    if show:
+        [print(i + 1, song) for i, song in enumerate(recentlyPlayedSongs)]
+        print(f"\n{len(recentlyPlayedSongs)} new songs stored")
 
 
 saveRecentlyPlayedSongs()

@@ -209,7 +209,6 @@ class PlayedSong(SpotifyObject):
     storing_path = "recently_played.csv"
 
     flattenPaths = {
-        'id': "played_at",
         'name': "track.name",
         'track_id': "track.id",
         'track_popularity': "track.popularity",
@@ -271,7 +270,7 @@ class RecentlyPlayedSongs:
                 **song,
                 'context': {'type': 'playlist', 'uri': Playlist.likedSongs} if not song['context'] else
                 {'type': song['context']['type'], 'uri': song['context']['uri'].split(':')[2]},
-                'played_at': utils.toTimestamp(song['played_at'])
+                'id': utils.toTimestamp(song['played_at'])
             }
             for song in recently_played
         ]
