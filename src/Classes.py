@@ -76,7 +76,6 @@ class Song(SpotifyObject):
         self.duration_ms = self.queryDict['duration_ms']
         self.explicit = self.queryDict['explicit']
         self.isrc = self.queryDict['isrc']
-        self.popularity = self.queryDict['popularity']
         self.track_number = self.queryDict['track_number']
 
         del self.queryDict
@@ -103,7 +102,6 @@ class Album(SpotifyObject):
         self.artists_id = self.queryDict['artists_id']
         self.tracks = self.queryDict['tracks']
         self.release_date = self.queryDict['release_date']
-        self.popularity = self.queryDict['popularity']
         self.images = self.queryDict['images']
 
         del self.queryDict
@@ -119,22 +117,19 @@ class Album(SpotifyObject):
 class Artist(SpotifyObject):
     storing_path = "artists.csv"
     flattenPaths = {
-        'followers': "followers.total",
         'images': "images.url"
     }
 
     def __init__(self, id="", queryDict=None):
         super().__init__(id, queryDict)
 
-        self.followers = self.queryDict['followers']
         self.genres = self.queryDict['genres']
-        self.popularity = self.queryDict['popularity']
         self.images = self.queryDict['images']
 
         del self.queryDict
 
     def __str__(self):
-        return f"{self.name} with {self.followers} followers"
+        return f"{self.name}"
 
     @staticmethod
     def fetchFromAPI(new_id):
@@ -149,7 +144,6 @@ class Artist(SpotifyObject):
 class Playlist(SpotifyObject):
     storing_path = "playlists.csv"
     flattenPaths = {
-        'followers': "followers.total",
         'owner_id': "owner.id",
         'images': "images.url",
     }
@@ -162,14 +156,13 @@ class Playlist(SpotifyObject):
 
         self.collaborative = self.queryDict['collaborative']
         self.description = self.queryDict['description']
-        self.followers = self.queryDict['followers']
         self.owner_id = self.queryDict['owner_id']
         self.images = self.queryDict['images']
 
         del self.queryDict
 
     def __str__(self):
-        return f"{self.name} by {self.owner_id} and {self.followers} followers"
+        return f"{self.name} by {self.owner_id}"
 
     @staticmethod
     def fetchFromAPI(new_id):
@@ -189,16 +182,14 @@ class Playlist(SpotifyObject):
 
 class User(SpotifyObject):
     storing_path = "users.csv"
-    name_attribute = 'display_name'
     flattenPaths = {
-        'followers': "followers.total",
+        'name': 'display_name',
         'images': "images.url",
     }
 
     def __init__(self, id="", queryDict=None):
         super().__init__(id, queryDict)
 
-        self.followers = self.queryDict['followers']
         self.images = self.queryDict['images']
 
         del self.queryDict
@@ -211,19 +202,17 @@ class User(SpotifyObject):
         return sp.user(new_id)
 
     def getPlaylists(self):
-        return utils.getValueFromNestedDictionary(data=sp.user_playlists(self.id),
-                                                  path='items.id')
+        return utils.getValueFromNestedDictionary(data=sp.user_playlists(self.id), path='items.id')
 
 
 class PlayedSong(SpotifyObject):
     storing_path = "recently_played.csv"
-    unique_attribute = 'played_at'
-    name_attribute = "name"
 
     flattenPaths = {
         'id': "played_at",
         'name': "track.name",
         'track_id': "track.id",
+        'track_popularity': "track.popularity",
         'context_type': "context.type",
         'context_id': "context.uri"
     }
@@ -232,6 +221,7 @@ class PlayedSong(SpotifyObject):
         super().__init__(id, queryDict)
 
         self.track_id = self.queryDict['track_id']
+        self.track_popularity = self.queryDict['track_popularity']
         self.context_type = self.queryDict['context_type']
         self.context_id = self.queryDict['context_id']
 
@@ -247,7 +237,7 @@ class PlayedSong(SpotifyObject):
     def playedAt(self):
         return utils.toDateTime(self.id)
 
-    def isRecommended(self):
+    def isRecommended(self):    # TODO: PROVAR SI FUNCIONA EN CONTEXT
         # Listening from playlist       ==>     Track added after listening & is in playlist
         if self.context_type == 'playlist':
             return any(playlistTrack[0] >= self.id for playlistTrack in Playlist(self.context_id).getTracks()
@@ -303,6 +293,8 @@ class RecentlyPlayedSongs:
          for artist in sp.artists(batch_ids)['artists']]
         [Playlist.store(sp.playlist(playlist))
          for playlist in playlist_ids if playlist != Playlist.likedSongs]
+
+
 
         # Return the new playedSongs
         return [song for song in (PlayedSong.store(item) for item in recently_played) if song is not None]
