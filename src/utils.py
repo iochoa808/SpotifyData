@@ -23,7 +23,10 @@ def get_data_path():
 
 
 def toTimestamp(date):
-    return int(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp())
+    try:
+        return int(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp())
+    except:
+        return int(datetime.strptime(date, "%Y-%m-%dT%H:%M:%SZ").timestamp())
 
 
 def toDateTime(timestamp):
