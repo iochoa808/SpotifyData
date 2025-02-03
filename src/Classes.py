@@ -149,7 +149,7 @@ class Playlist(SpotifyObject):
     }
 
     likedSongs = '0000000000000000000000'
-    excludeStore = ['37i9dQZF1', '0000000000']
+    excludeStore = ['37i9dQZ', '0000000000']
 
     def __init__(self, id="", queryDict=None):
         super().__init__(id, queryDict)
