@@ -6885,3 +6885,7 @@ id,name,album_id,artists_id,duration_ms,explicit,isrc,track_number
 2wLeH0e4QDwTbpRIkVf7g2,Stendhal Syndrome,0c6dR9oBsrk74lVzGexfqI,['75mafsNqNE1WSEVxIKuY5C'],157077,True,USBQU2400360,1
 2x9Fy0DVFyuIHGodTETDnt,Drop Dead Gorgeous,6GngxqHldEck7q9yLXD323,['6lay1nwbE6hTx1jivysUAL'],187673,True,QT2JK2500030,1
 29nNubDYRUCrYUgNyJPZON,MTT 420 RR,6eGvGeCrgRlUmxnPjmhxUN,['75mafsNqNE1WSEVxIKuY5C'],330973,False,USBQU2100061,1
+6VzQ1tQRQ06S9WpvsLFt0i,Kelechi,6eGvGeCrgRlUmxnPjmhxUN,['75mafsNqNE1WSEVxIKuY5C'],30826,False,USBQU2100070,10
+7LPNaYrZ2WybblURmMFk3y,The End,6eGvGeCrgRlUmxnPjmhxUN,['75mafsNqNE1WSEVxIKuY5C'],198533,True,USBQU2100074,14
+2H3pD4HY24kbvhxt0cxiSA,Wizz,6eGvGeCrgRlUmxnPjmhxUN,['75mafsNqNE1WSEVxIKuY5C'],30000,False,USBQU2100072,12
+12WidMMclRP5xPvg9rDjhX,Stockholm Syndrome,6eGvGeCrgRlUmxnPjmhxUN,['75mafsNqNE1WSEVxIKuY5C'],182200,False,USBQU2100066,6
