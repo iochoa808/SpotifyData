@@ -9517,3 +9517,8 @@ id,name,album_id,artists_id,duration_ms,explicit,isrc,track_number
 6bTULayZPOFDoT75QND08D,Divide and Conquer (Live from BBC Introducing at Glastonbury),4qkVmTdLjjLpZAGLHF9SKz,['75mafsNqNE1WSEVxIKuY5C'],200137,False,USBQU2200293,7
 1GkeE2edh4CxszeyKE8iUY,Exeter,79sKacdtuhSBKUxofuYWIX,['75mafsNqNE1WSEVxIKuY5C'],239402,True,GBKPL1674999,10
 3hU9icvoF9Ct7SZj0DKxij,Stendhal Syndrome,79sKacdtuhSBKUxofuYWIX,['75mafsNqNE1WSEVxIKuY5C'],144477,True,GBKPL1674998,9
+0f6U2SjPnBQvOXaDYoBGJS,Loisaida,0ox54iBEAeghJpulMDAVfD,"['75mafsNqNE1WSEVxIKuY5C', '2ZeUaZT3s3NSbeV7OS094J', '7tA53pONjaW3je6N1ugaPo']",238613,False,USBQU2500259,7
+4iYpO5hNeKDnWkGMz6ORul,Bay 15,0ox54iBEAeghJpulMDAVfD,"['75mafsNqNE1WSEVxIKuY5C', '2ZeUaZT3s3NSbeV7OS094J', '7tA53pONjaW3je6N1ugaPo']",238666,False,USBQU2500264,12
+3oPH9TXut6AiL8tgMy8zpH,IDEA 01,13fXtIpIyvz4D5Ny3TSHym,['75mafsNqNE1WSEVxIKuY5C'],218493,False,USBQU2300128,1
+3VezcGsHbevVmKmCgDAeGk,Faith in the City,79sKacdtuhSBKUxofuYWIX,['75mafsNqNE1WSEVxIKuY5C'],156341,False,GBKPL1674996,5
+0sMxwpSKaO2UVw3YHhoYAO,"Flushing, Queens",0ox54iBEAeghJpulMDAVfD,"['75mafsNqNE1WSEVxIKuY5C', '2ZeUaZT3s3NSbeV7OS094J', '7tA53pONjaW3je6N1ugaPo']",152360,False,USBQU2500262,10
