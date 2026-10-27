@@ -1,3 +1,6 @@
-spotipy==2.23.0  # Assuming the Spotify API wrapper used is Spotipy
-pandas==2.0.3    # For handling CSV files if applicable
-python-dotenv==1.0.0  # For loading environment variables from .env
+# Spotify Web API client. Verified against the live API on 2026-10-27: every
+# endpoint this project calls is present and a full collection run succeeds.
+spotipy==2.26.0
+
+# Loads src/.env for local runs. In CI the values come from repository secrets.
+python-dotenv==1.0.0

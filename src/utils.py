@@ -1,11 +1,9 @@
 from itertools import islice
 import os
-from datetime import datetime, timezone, timedelta
-from Spotify import sp
+from datetime import datetime, timezone
 
 GITHUB_PATH = './data'
 LOCAL_PATH = os.path.join(os.path.dirname(__file__), '..', 'data')
-LOCAL_OFFSET = timedelta(hours=1)
 
 
 # Utility function to split a list into batches
@@ -23,17 +21,38 @@ def get_data_path():
 
 
 def toTimestamp(date):
-    try:
-        return int(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timestamp())
-    except:
-        return int(datetime.strptime(date, "%Y-%m-%dT%H:%M:%SZ").timestamp())
+    """Spotify's UTC played_at string -> UTC epoch seconds.
+
+    The trailing 'Z' means UTC, so the parsed value has to be tagged as UTC
+    before .timestamp() is taken. Without the tzinfo, Python reads it in the
+    machine's own zone and the result moves with the runner: the same play came
+    out as 1784532876 under UTC but 1784525676 under Europe/Madrid. Since this
+    value is the primary key of recently_played.csv, that silently forked the
+    history whenever the script ran anywhere but the UTC CI runner.
+    """
+    for pattern in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ"):
+        try:
+            parsed = datetime.strptime(date, pattern)
+        except ValueError:
+            continue
+        return int(parsed.replace(tzinfo=timezone.utc).timestamp())
+    raise ValueError(f"Unrecognised Spotify timestamp: {date!r}")
 
 
 def toDateTime(timestamp):
-    return datetime.fromtimestamp(timestamp) + timedelta(hours=1)
+    """UTC epoch seconds -> aware datetime in the local zone, for display.
+
+    Replaces a hardcoded +1 hour, which was only right for half the year.
+    """
+    return datetime.fromtimestamp(timestamp, timezone.utc).astimezone()
 
 
 def getItemsFromAPICall(itemsObj):
+    # Imported here rather than at module scope: Spotify.py builds its client on
+    # import, so a top-level import would make this module unusable without
+    # credentials — including under test.
+    from Spotify import sp
+
     results = []
     while itemsObj:
         results.extend(item for item in itemsObj['items'])

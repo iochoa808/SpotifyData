@@ -19,12 +19,16 @@ class SpotifyObject(ABC):
         if queryDict is None and not id:
             raise ValueError(f"{self.__class__.__name__} requires either 'queryDict' or 'new_id' to initialize.")
 
-        csvDict = rw.instanceExists(self.storing_path, id)          # Es busca al CSV
-        self.queryDict = csvDict if csvDict else self.adaptPaths(   # Si existeix al CSV
-            queryDict if queryDict else (                           # Sino si s'ha donat queryDict
+        if queryDict is not None:
+            # Data already in hand. The old code still searched the CSV here —
+            # for id="", a key that cannot match, so it read the entire file
+            # every time only to fall through to this same branch.
+            self.queryDict = self.adaptPaths(queryDict)
+        else:
+            csvDict = rw.instanceExists(self.storing_path, id)      # Es busca al CSV
+            self.queryDict = csvDict if csvDict else self.adaptPaths(
                 self.fetchFromAPI(id)                               # Altrament es busca a la API
             )
-        )
         if not self.queryDict:
             raise ValueError(f"Query incorrecta de {self.__class__.__name__}")
 
@@ -48,7 +52,7 @@ class SpotifyObject(ABC):
         if cls.storing_path is None:
             raise ValueError(f"{cls.__name__} must define a 'storing_path'.")
 
-        if not rw.instanceExists(cls.storing_path, unique_value=objDict.get(cls.unique_attribute)):
+        if not rw.idExists(cls.storing_path, objDict.get(cls.unique_attribute)):
             new_instance = cls(queryDict=objDict)  # Dynamically call the subclass constructor
             rw.saveInstanceToCSV(new_instance, cls.storing_path)
             return new_instance
@@ -260,9 +264,41 @@ class RecentlyPlayedSongs:
         pass
 
     @staticmethod
+    def fetchSinceLastStored(max_pages=20):
+        """Every play Spotify still holds that is newer than the last stored one.
+
+        Measured against the live API: Spotify retains roughly 50 plays and no
+        more. Asking for a week returns one page of 50 and an empty second page,
+        so the cursor does NOT lift that ceiling — only a shorter polling
+        interval does, which is why the schedule now runs hourly (the busiest
+        2-hour window on record held 44 plays, uncomfortably close to 50).
+
+        What the cursor does buy: `after` is exclusive, so a run sees only
+        genuinely new plays instead of re-examining the same 50 every time, the
+        items arrive oldest-first, and the code already works if Spotify ever
+        widens the window.
+        """
+        after = rw.latestId(PlayedSong.storing_path)
+
+        # Spotify's cursor is in milliseconds, and `after` is exclusive.
+        page = sp.current_user_recently_played(
+            limit=50, after=(after * 1000) if after else None
+        )
+
+        items, pages = [], 0
+        while page and pages < max_pages:
+            items.extend(page['items'])
+            pages += 1
+            page = sp.next(page) if page.get('next') else None
+
+        # Oldest first, so a partial failure still leaves a contiguous history.
+        items.sort(key=lambda item: item['played_at'])
+        return items
+
+    @staticmethod
     def saveRecentlyPlayedSongs():
         # Retrieve recently played songs
-        recently_played = sp.current_user_recently_played(limit=50)['items'][::-1]
+        recently_played = RecentlyPlayedSongs.fetchSinceLastStored()
 
         # Tractar recently played
         recently_played = [

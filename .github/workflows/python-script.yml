@@ -1,70 +1,143 @@
 name: Run Python Script and Upload CSVs
 
 on:
-    workflow_dispatch:
-    schedule:
-      - cron: "25 */2 * * *"
-      
+  workflow_dispatch:
+  schedule:
+    # Hourly. Spotify retains only ~50 recent plays and the cursor cannot reach
+    # past that (verified against the live API), so the polling interval is the
+    # only thing standing between a heavy listening session and lost history.
+    # The busiest 2-hour window on record held 44 plays; over one hour, 50 would
+    # mean a track every 72 seconds.
+    - cron: "25 * * * *"
+
 permissions:
-  contents: write  # Grants write access to the repository contents
+  contents: write # commit the collected CSVs
+  issues: write # raise the alarm when a run fails
+
+# Never let two runs push at once; queue the second rather than cancelling it,
+# because a cancelled run is listening history lost for good.
+concurrency:
+  group: collect-listening-history
+  cancel-in-progress: false
 
 jobs:
   run-script:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15  # Terminate the job if it exceeds 15 minutes
+    runs-on: ubuntu-24.04 # pinned: ubuntu-latest rolls forward without warning
+    timeout-minutes: 15
+
+    env:
+      # utils.toTimestamp() is zone-independent now, so this is belt-and-braces
+      # rather than load-bearing: it keeps the runner matching the 19 months of
+      # history that were collected under UTC.
+      TZ: UTC
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: "3.12"
+          cache: pip
 
       - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
+
+      # Credential-free and sub-second. Catches the class of bug that made the
+      # timestamp key depend on the host's timezone — which passed on this UTC
+      # runner and corrupted data everywhere else.
+      - name: Run Tests
+        run: python -m unittest discover -s tests
 
       - name: Execute Python Script
         env:
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
           REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
-        run: |
-          set -x
-          python src/main.py
-
-          
-      - name: Check and Stage Changes
-        run: |
-          if [ -f token.txt ]; then
-            rm token.txt
-          fi
-          # Check if there are any changes in the repository
-          if git diff --quiet; then
-            echo "No changes detected."
-            echo "changes=false" >> $GITHUB_ENV
-          else
-            echo "Changes detected."
-            echo "changes=true" >> $GITHUB_ENV
-          fi
+        run: python src/main.py
 
       - name: Commit and Push CSV Files
-        if: env.changes == 'true'
-        run: |
-          git add ./data/*.csv
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -m "Updated CSV files"
-          git push
+        id: commit
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- data; then
+            echo "No new plays to store."
+            echo "changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "changes=true" >> "$GITHUB_OUTPUT"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ./data/*.csv
+          git commit -m "Updated CSV files"
+
+          # Rebase onto whatever landed while this run was collecting, and retry:
+          # a push that loses a race must not discard the run's data. Both refs
+          # are explicit — a scheduled checkout has no upstream tracking set up.
+          for attempt in 1 2 3; do
+            if git pull --rebase --autostash origin "$BRANCH" \
+               && git push origin "HEAD:$BRANCH"; then
+              echo "Pushed on attempt $attempt."
+              exit 0
+            fi
+            echo "Push attempt $attempt failed; retrying."
+            sleep 5
+          done
+          echo "::error::Could not push collected data after 3 attempts."
+          exit 1
 
       - name: Upload CSV Files
-        if: env.changes == 'true'
+        if: steps.commit.outputs.changes == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: csv-outputs
           path: ./data/*.csv
+
+      # Without this the collector failed every 2 hours from 2026-07-20 to
+      # 2026-09-18 with nobody watching, then GitHub disabled the schedule for
+      # inactivity. Silence is the most expensive bug this project has had.
+      - name: Raise the alarm on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Listening-history collector is failing';
+            const body = [
+              `Run [#${context.runNumber}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) failed.`,
+              '',
+              'Most likely cause, in order:',
+              '1. Spotify rejected `REFRESH_TOKEN` — mint a new one with `python src/auth_catch.py` and update the secret.',
+              '2. A Spotify API change — check the traceback in the run log.',
+              '',
+              'While this is broken, listening history is being lost permanently:',
+              'Spotify only retains the last 50 plays.',
+            ].join('\n');
+
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'collector-down',
+            });
+
+            if (open.data.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: open.data[0].number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['collector-down'],
+              });
+            }
