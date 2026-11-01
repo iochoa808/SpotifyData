@@ -1,0 +1,63 @@
+name: Publish Database
+
+# Deliberately separate from the collector. Building the database takes a few
+# seconds and is pure derivation from the committed CSVs, so there is no reason
+# to put it on the hourly path and risk slowing or breaking collection — the
+# one job in this repository that loses data when it fails.
+on:
+  workflow_dispatch:
+  schedule:
+    # Sundays at 05:10 UTC, off the collector's :25 slot.
+    - cron: "10 5 * * 0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-database
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The builder is stdlib-only (sqlite3, csv), so there is nothing to
+      # install. Tests run anyway: they are credential-free and sub-second.
+      - name: Run Tests
+        run: python -m unittest discover -s tests
+
+      - name: Build Database
+        run: python src/database.py build
+
+      # Fails the job on a foreign-key violation or a row count that disagrees
+      # with the CSVs, so a published database is never a silently broken one.
+      - name: Verify Against CSVs
+        run: python src/database.py verify
+
+      - name: Summarise
+        run: |
+          {
+            echo "## spotify.db"
+            echo
+            echo '```'
+            python src/database.py stats
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Database
+        uses: actions/upload-artifact@v4
+        with:
+          name: spotify-db
+          path: spotify.db
+          retention-days: 30
+          compression-level: 9

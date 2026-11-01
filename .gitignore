@@ -163,3 +163,7 @@ cython_debug/
 
 # JetBrains IDE
 .idea/
+
+# Derived SQLite database - rebuilt from data/*.csv, never committed
+*.db
+*.db.tmp
