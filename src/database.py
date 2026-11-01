@@ -170,7 +170,12 @@ SELECT p.played_at,
        s.explicit,
        p.track_popularity,
        p.context_type,
-       p.context_id
+       p.context_id,
+       -- Where the row came from. The bulk export carries no playlist context
+       -- and no popularity at play time, so an absent context_type marks an
+       -- imported play; analyses that depend on either field should filter on
+       -- this rather than silently averaging the two regimes together.
+       CASE WHEN p.context_type IS NULL THEN 'import' ELSE 'api' END AS source
 FROM plays p
 JOIN songs s       ON s.id = p.track_id
 LEFT JOIN albums al ON al.id = s.album_id;

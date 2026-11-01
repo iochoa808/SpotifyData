@@ -167,3 +167,12 @@ cython_debug/
 # Derived SQLite database - rebuilt from data/*.csv, never committed
 *.db
 *.db.tmp
+
+# Spotify GDPR export - contains IP addresses and device info, and this
+# repository is public. Only ts/track/ms_played are ever imported from it.
+my_spotify_data.zip
+*_spotify_data*.zip
+Spotify Extended Streaming History/
+
+# Windows alternate-data-stream artifacts from files copied out of Explorer
+*:Zone.Identifier
