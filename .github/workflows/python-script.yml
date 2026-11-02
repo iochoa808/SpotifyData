@@ -12,20 +12,24 @@ on:
     # full window.
     #
     # GitHub's scheduler is best-effort and drops most triggers on public
-    # repos: this fires roughly 4-5 times a day however often it is asked.
+    # repos. It fires roughly 4-5 times a day however often it is asked, and
+    # on 2 November it went quiet for nearly 16 hours before resuming on its
+    # own — against a historical worst gap of 7.9h. Nothing was wrong: the
+    # workflow was active, GitHub reported no incident, and the run that broke
+    # the silence fired from the ":37" entry below.
     #
-    # A previous attempt listed four entries across the hour to catch more of
-    # the scheduler's windows. Scheduled runs then stopped entirely for 16+
-    # hours, against a historical worst gap of 7.9h. That stall actually began
-    # about 9 hours BEFORE the change, so the four entries were probably
-    # innocent and multiple crons are a supported pattern — but the cost of
-    # reverting is nothing and the cost of being wrong is lost history, so
-    # this is back to the single entry that was observably firing.
+    # Four entries across the hour therefore stay: they cost nothing, ask at
+    # four points instead of one, and a run with nothing new is a no-op
+    # because of the `after` cursor. The concurrency group serialises any
+    # overlap.
     #
-    # The scheduler cannot be made reliable from inside Actions. Closing the
-    # gap properly needs an external trigger; until then workflow_dispatch is
-    # the dependable path.
-    - cron: "25 * * * *"
+    # This improves the odds; it cannot fix the cause. The scheduler is not
+    # controllable from inside Actions, so closing the gap reliably needs an
+    # external trigger. workflow_dispatch is the dependable manual path.
+    - cron: "7 * * * *"
+    - cron: "22 * * * *"
+    - cron: "37 * * * *"
+    - cron: "52 * * * *"
 
 permissions:
   contents: write # commit the collected CSVs
