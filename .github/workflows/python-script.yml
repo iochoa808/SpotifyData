@@ -3,12 +3,23 @@ name: Run Python Script and Upload CSVs
 on:
   workflow_dispatch:
   schedule:
-    # Hourly. Spotify retains only ~50 recent plays and the cursor cannot reach
-    # past that (verified against the live API), so the polling interval is the
-    # only thing standing between a heavy listening session and lost history.
-    # The busiest 2-hour window on record held 44 plays; over one hour, 50 would
-    # mean a track every 72 seconds.
-    - cron: "25 * * * *"
+    # Spotify retains only ~50 recent plays and the `after` cursor cannot reach
+    # past that, so the gap between runs is the only thing standing between a
+    # heavy listening session and permanently lost history. Measured against
+    # this account's own history, the worst window holds 47 plays over 2 hours
+    # but 64 over 3 — so anything beyond a ~2 hour gap can lose plays, and 65
+    # commits in the record already added exactly 45-60, the signature of a
+    # full window.
+    #
+    # GitHub's scheduler is best-effort and drops most triggers on public
+    # repos: a single hourly cron actually fired 4-5 times a day, no better
+    # than the 2-hourly one it replaced. These four entries ask at four points
+    # in the hour to catch more of its windows. Duplicate runs are harmless —
+    # the `after` cursor makes a run with nothing new a no-op.
+    - cron: "7 * * * *"
+    - cron: "22 * * * *"
+    - cron: "37 * * * *"
+    - cron: "52 * * * *"
 
 permissions:
   contents: write # commit the collected CSVs
