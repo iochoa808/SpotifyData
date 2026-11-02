@@ -12,14 +12,20 @@ on:
     # full window.
     #
     # GitHub's scheduler is best-effort and drops most triggers on public
-    # repos: a single hourly cron actually fired 4-5 times a day, no better
-    # than the 2-hourly one it replaced. These four entries ask at four points
-    # in the hour to catch more of its windows. Duplicate runs are harmless —
-    # the `after` cursor makes a run with nothing new a no-op.
-    - cron: "7 * * * *"
-    - cron: "22 * * * *"
-    - cron: "37 * * * *"
-    - cron: "52 * * * *"
+    # repos: this fires roughly 4-5 times a day however often it is asked.
+    #
+    # A previous attempt listed four entries across the hour to catch more of
+    # the scheduler's windows. Scheduled runs then stopped entirely for 16+
+    # hours, against a historical worst gap of 7.9h. That stall actually began
+    # about 9 hours BEFORE the change, so the four entries were probably
+    # innocent and multiple crons are a supported pattern — but the cost of
+    # reverting is nothing and the cost of being wrong is lost history, so
+    # this is back to the single entry that was observably firing.
+    #
+    # The scheduler cannot be made reliable from inside Actions. Closing the
+    # gap properly needs an external trigger; until then workflow_dispatch is
+    # the dependable path.
+    - cron: "25 * * * *"
 
 permissions:
   contents: write # commit the collected CSVs
