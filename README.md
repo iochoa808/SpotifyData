@@ -193,6 +193,77 @@ Scheduled workflows are disabled by GitHub after 60 days without repository
 activity. Successful runs commit, and commits reset that timer, so this only
 becomes a problem once collection is already broken.
 
+### The schedule is not reliable, and that costs plays
+
+GitHub's `schedule` event is best-effort. Measured on this repository, it fires
+**4–5 times a day whatever the cron says** — a single hourly entry did no better
+than the 2-hourly one it replaced — and on 2 November 2026 it went quiet for
+**15.9 hours** before resuming unprompted, with the workflow active and no
+GitHub incident.
+
+That matters because the gap between runs is the only protection there is.
+Against this account's own history:
+
+| Gap between runs | Busiest window | vs the ~50-play ceiling |
+|---|---|---|
+| 2 hours | 47 plays | safe, barely |
+| **3 hours** | **64 plays** | **loses ~14** |
+| 5 hours | 101 plays | loses ~51 |
+
+This is not theoretical: **65 commits in the history added exactly 45–60 plays**,
+which is the signature of a full window with older plays already scrolled out.
+
+Four cron entries across the hour improve the odds and nothing more. A
+dependable interval has to come from outside Actions.
+
+### External scheduler
+
+The workflow accepts a `repository_dispatch` event of type `collect`, so any
+external timer can fire it:
+
+```bash
+curl -X POST \
+  -H "Accept: application/vnd.github+json" \
+  -H "Authorization: Bearer $GITHUB_PAT" \
+  -H "X-GitHub-Api-Version: 2022-11-28" \
+  https://api.github.com/repos/iochoa808/SpotifyData/dispatches \
+  -d '{"event_type":"collect"}'
+```
+
+`scripts/trigger-collection.sh` wraps that with useful error messages — run it
+once locally to confirm the token works before handing it to a scheduler:
+
+```bash
+GITHUB_PAT=github_pat_... ./scripts/trigger-collection.sh
+```
+
+A success is **HTTP 204** with no body.
+
+**The token.** Create a *fine-grained* token at
+[Settings → Personal access tokens](https://github.com/settings/personal-access-tokens/new):
+
+| Setting | Value |
+|---|---|
+| Repository access | Only select repositories → `SpotifyData` |
+| Permissions | Repository permissions → **Contents: Read and write** |
+| Expiration | Set one, and diarise the renewal |
+
+Contents write is the only permission the dispatches endpoint needs. The token
+can push to this repository, so treat it as a password: put it only in the
+scheduler's secret field, never in the repo, and never in a commit. An expired
+token fails closed — collection falls back to GitHub's unreliable schedule
+rather than breaking — so renewal is the thing to watch.
+
+**The scheduler.** Anything that can POST on a timer works. A hosted cron
+service (cron-job.org and similar) needs: the URL above, method `POST`, the
+three headers, the JSON body, and an interval of 30 minutes or better. Keep it
+under two hours; the table above is why.
+
+A local timer is the alternative if this machine is usually on, and needs no
+token at all — it can run `src/main.py` directly and push. Both sources can
+collect at once safely: it has happened twice, and git reconciled both without
+duplicates, because `played_at` is the primary key and the CSVs merge as text.
+
 ## Layout
 
 ```

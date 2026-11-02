@@ -2,6 +2,15 @@ name: Run Python Script and Upload CSVs
 
 on:
   workflow_dispatch:
+
+  # Triggered from outside GitHub, which is the only way to get a dependable
+  # interval. See "External scheduler" in the README for the POST that fires
+  # it. GitHub's own scheduler drops most triggers on public repos, and the
+  # gap between runs is the only protection against Spotify's ~50-play
+  # retention ceiling.
+  repository_dispatch:
+    types: [collect]
+
   schedule:
     # Spotify retains only ~50 recent plays and the `after` cursor cannot reach
     # past that, so the gap between runs is the only thing standing between a
