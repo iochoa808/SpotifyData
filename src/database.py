@@ -44,7 +44,8 @@ DEFAULT_DATA = REPO_ROOT / "data"
 #       are missing: editorial playlists (37i9dQZ...) and Liked Songs are
 #       skipped by Playlist.excludeStore. A constraint would reject a third of
 #       the history. The column is polymorphic anyway — context_type says which
-#       table it points at.
+#       table it points at. Spotify's own playlists do get a name, from
+#       spotify_playlist_names; see plays_detail.playlist_name.
 #   playlists.owner_id -> users    there is no users table; the User class has
 #       never stored anything.
 SCHEMA = """
@@ -127,6 +128,18 @@ CREATE TABLE playlist_images (
     PRIMARY KEY (playlist_id, position)
 );
 
+-- Names of Spotify's own playlists (37i9dQZ...), which the Web API refuses to
+-- return. A log, not a table of playlists: one row per name observed, since
+-- daylist and the mixes retitle themselves and expire. No FK to playlists,
+-- which holds only playlists the API returns. Built from
+-- spotify_playlists.csv; see playlist_names.py.
+CREATE TABLE spotify_playlist_names (
+    playlist_id TEXT    NOT NULL,
+    name        TEXT    NOT NULL,
+    fetched_at  INTEGER NOT NULL,        -- UTC epoch seconds of the lookup
+    PRIMARY KEY (playlist_id, fetched_at)
+);
+
 CREATE TABLE plays (
     -- UTC epoch seconds. This is the natural key: one play per instant, and
     -- the same value the CSV uses, so the two stores stay comparable.
@@ -171,6 +184,21 @@ SELECT p.played_at,
        p.track_popularity,
        p.context_type,
        p.context_id,
+       -- A stored playlist's name, otherwise the Spotify playlist name looked
+       -- up nearest to the play. Names fetched for the backfill on 2026-11-06
+       -- are today's, so for older plays they are a best guess.
+       CASE WHEN p.context_type = 'playlist' THEN COALESCE(
+           (SELECT pl.name FROM playlists pl WHERE pl.id = p.context_id),
+           -- SQLite cannot see p from a subquery's ORDER BY, hence the
+           -- min() comparison; a tie goes to the later name.
+           (SELECT n.name FROM spotify_playlist_names n
+             WHERE n.playlist_id = p.context_id
+               AND abs(n.fetched_at - p.played_at) =
+                   (SELECT min(abs(m.fetched_at - p.played_at))
+                      FROM spotify_playlist_names m
+                     WHERE m.playlist_id = p.context_id)
+             ORDER BY n.fetched_at DESC LIMIT 1))
+       END                                         AS playlist_name,
        -- Where the row came from. The bulk export carries no playlist context
        -- and no popularity at play time, so an absent context_type marks an
        -- imported play; analyses that depend on either field should filter on
@@ -188,7 +216,12 @@ TABLE_SOURCE = {
     "songs": "songs",
     "playlists": "playlists",
     "plays": "recently_played",
+    "spotify_playlist_names": "spotify_playlists",
 }
+
+# Sources that may legitimately be absent: the collector writes
+# spotify_playlists.csv only once it has seen one of Spotify's playlists.
+OPTIONAL_SOURCES = {"spotify_playlists"}
 
 
 def connect(db_path=DEFAULT_DB):
@@ -202,6 +235,8 @@ def connect(db_path=DEFAULT_DB):
 def read_csv(data_dir, name):
     path = Path(data_dir) / f"{name}.csv"
     if not path.exists():
+        if name in OPTIONAL_SOURCES:
+            return []
         raise FileNotFoundError(f"{path} not found")
     # Older rows were written by a Windows runner and are not all valid UTF-8.
     for encoding in ("utf-8", "windows-1252"):
@@ -305,6 +340,12 @@ def populate(conn, data_dir=DEFAULT_DATA):
           r.get("context_type") or None, r.get("context_id") or None)
          for r in plays])
 
+    conn.executemany(
+        """INSERT OR IGNORE INTO spotify_playlist_names
+           (playlist_id, name, fetched_at) VALUES (?, ?, ?)""",
+        [(r["id"], r["name"], as_int(r["fetched_at"]))
+         for r in read_csv(data_dir, "spotify_playlists")])
+
     conn.commit()
 
     for table in table_names(conn):
@@ -382,7 +423,7 @@ def verify(db_path=DEFAULT_DB, data_dir=DEFAULT_DATA, report=False):
             in_csv = len(read_csv(data_dir, source))
             if report:
                 status = "ok" if in_db == in_csv else "MISMATCH"
-                print(f"  {table:<18} db={in_db:<8} csv={in_csv:<8} {status}")
+                print(f"  {table:<24} db={in_db:<8} csv={in_csv:<8} {status}")
             if in_db != in_csv:
                 failures.append(f"{table}: {in_db} rows vs {in_csv} in {source}.csv")
     finally:
@@ -393,10 +434,10 @@ def verify(db_path=DEFAULT_DB, data_dir=DEFAULT_DATA, report=False):
 def stats(db_path=DEFAULT_DB):
     conn = connect(db_path)
     try:
-        print(f"  {'table':<18}{'rows':>10}")
+        print(f"  {'table':<24}{'rows':>10}")
         for table in table_names(conn):
             n = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-            print(f"  {table:<18}{n:>10,}")
+            print(f"  {table:<24}{n:>10,}")
         first, last, total = conn.execute(
             "SELECT MIN(played_at), MAX(played_at), COUNT(*) FROM plays").fetchone()
         if first:
@@ -420,7 +461,7 @@ def main(argv=None):
         counts, elapsed = build(args.db, args.data)
         print(f"Built {args.db} in {elapsed:.1f}s")
         for table, n in sorted(counts.items()):
-            print(f"  {table:<18}{n:>10,}")
+            print(f"  {table:<24}{n:>10,}")
         return 0
 
     if args.command == "verify":

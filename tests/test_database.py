@@ -49,6 +49,12 @@ FIXTURE = {
         # an editorial playlist that is deliberately never stored
         "1700000400,Cinderella,sng3,61,playlist,37i9dQZF1DXnotstored\n"
     ),
+    # its name, observed twice because Spotify retitled it in between
+    "spotify_playlists": (
+        "id,name,fetched_at\n"
+        "37i9dQZF1DXnotstored,daylist morning,1700000300\n"
+        "37i9dQZF1DXnotstored,daylist night,1700090000\n"
+    ),
 }
 
 
@@ -82,7 +88,7 @@ class TestBuild(DatabaseTestCase):
             "artists", "artist_genres", "artist_images",
             "albums", "album_artists", "album_tracks", "album_images",
             "songs", "song_artists",
-            "playlists", "playlist_images", "plays",
+            "playlists", "playlist_images", "plays", "spotify_playlist_names",
         })
         views = {r[0] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='view'")}
@@ -95,6 +101,7 @@ class TestBuild(DatabaseTestCase):
         self.assertEqual(counts["songs"], 3)
         self.assertEqual(counts["playlists"], 1)
         self.assertEqual(counts["plays"], 3)
+        self.assertEqual(counts["spotify_playlist_names"], 2)
 
     def test_verify_passes_on_a_fresh_build(self):
         self.build()
@@ -202,6 +209,21 @@ class TestViews(DatabaseTestCase):
         self.assertEqual(row["artists"], "Vulfpeck, Remi Wolf")
         self.assertEqual(row["played_at_utc"], "2023-11-14 22:16:40")
 
+    def playlist_name(self, played_at):
+        return self.conn.execute(
+            "SELECT playlist_name FROM plays_detail WHERE played_at=?",
+            (played_at,)).fetchone()[0]
+
+    def test_stored_playlist_is_named(self):
+        self.assertEqual(self.playlist_name(1700000000), "Funk")
+
+    def test_spotify_playlist_takes_the_name_nearest_the_play(self):
+        # 100 s from the first lookup, a day from the second.
+        self.assertEqual(self.playlist_name(1700000400), "daylist morning")
+
+    def test_non_playlist_context_has_no_playlist_name(self):
+        self.assertIsNone(self.playlist_name(1700000200))
+
     def test_artist_play_counts_are_now_a_group_by(self):
         rows = self.conn.execute("""
             SELECT a.name, COUNT(*) AS plays
@@ -241,6 +263,13 @@ class TestFailureHandling(DatabaseTestCase):
         (self.data / "songs.csv").unlink()
         with self.assertRaises(FileNotFoundError):
             self.build()
+
+    def test_spotify_playlist_names_are_optional(self):
+        # The collector creates the file only once it meets such a playlist.
+        (self.data / "spotify_playlists.csv").unlink()
+        counts, _ = self.build()
+        self.assertEqual(counts["spotify_playlist_names"], 0)
+        self.assertEqual(db.verify(self.db, self.data), [])
 
     def test_verify_reports_a_count_mismatch(self):
         self.build()

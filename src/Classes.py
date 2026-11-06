@@ -1,5 +1,6 @@
 from Spotify import sp
 import ReadWrite as rw
+import playlist_names
 import utils
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
@@ -153,7 +154,8 @@ class Playlist(SpotifyObject):
     }
 
     likedSongs = '0000000000000000000000'
-    excludeStore = ['37i9dQZ', '0000000000']
+    spotifyOwned = '37i9dQZ'
+    excludeStore = [spotifyOwned, '0000000000']
 
     def __init__(self, id="", queryDict=None):
         super().__init__(id, queryDict)
@@ -329,7 +331,13 @@ class RecentlyPlayedSongs:
         [Playlist.store(sp.playlist(playlist))
          for playlist in playlist_ids if playlist != Playlist.likedSongs]
 
+        new_played = [song for song in (PlayedSong.store(item) for item in recently_played) if song is not None]
 
+        # Spotify's own playlists can't be stored above, but their names can be
+        # logged. After the plays, so a failed lookup never costs one.
+        playlist_names.record({item['context']['uri'] for item in recently_played
+                               if item['context']['type'] == 'playlist' and
+                               item['context']['uri'].startswith(Playlist.spotifyOwned)})
 
         # Return the new playedSongs
-        return [song for song in (PlayedSong.store(item) for item in recently_played) if song is not None]
+        return new_played

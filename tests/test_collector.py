@@ -18,6 +18,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 import ReadWrite as rw  # noqa: E402
+import playlist_names  # noqa: E402
 import utils  # noqa: E402
 
 
@@ -177,6 +178,53 @@ class TestBatch(unittest.TestCase):
 
     def test_empty_input_yields_nothing(self):
         self.assertEqual(list(utils.batch([], 20)), [])
+
+
+class TestPlaylistNames(unittest.TestCase):
+    """Names of Spotify's own playlists, logged without touching the network."""
+
+    # Same temporary data directory as the CSV store tests.
+    setUp = TestCsvStore.setUp
+    _restore = TestCsvStore._restore
+
+    def names(self, mapping):
+        return lambda playlist_id: mapping[playlist_id]
+
+    def test_first_sighting_is_recorded(self):
+        rows = playlist_names.record(["37i9dQZEVXcTKsvXUNi9za"],
+                                     fetch=self.names({"37i9dQZEVXcTKsvXUNi9za": "Discover Weekly"}),
+                                     now=1000)
+        self.assertEqual(rows, [{"id": "37i9dQZEVXcTKsvXUNi9za",
+                                 "name": "Discover Weekly", "fetched_at": 1000}])
+        self.assertEqual(playlist_names.latestNames(),
+                         {"37i9dQZEVXcTKsvXUNi9za": "Discover Weekly"})
+
+    def test_unchanged_name_is_not_repeated(self):
+        fetch = self.names({"37i9dQZEVXcTKsvXUNi9za": "Discover Weekly"})
+        playlist_names.record(["37i9dQZEVXcTKsvXUNi9za"], fetch=fetch, now=1000)
+        self.assertEqual(playlist_names.record(["37i9dQZEVXcTKsvXUNi9za"], fetch=fetch, now=2000), [])
+
+    def test_rename_is_logged_and_becomes_latest(self):
+        # daylist retitles itself through the day; each title is kept.
+        playlist_names.record(["37i9dQZF1EP6YuccBxUcC1"],
+                              fetch=self.names({"37i9dQZF1EP6YuccBxUcC1": "daylist \u2022 sunday morning"}),
+                              now=1000)
+        rows = playlist_names.record(["37i9dQZF1EP6YuccBxUcC1"],
+                                     fetch=self.names({"37i9dQZF1EP6YuccBxUcC1": "daylist \u2022 sunday night"}),
+                                     now=2000)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(playlist_names.latestNames(),
+                         {"37i9dQZF1EP6YuccBxUcC1": "daylist \u2022 sunday night"})
+
+    def test_gone_playlist_is_skipped(self):
+        self.assertEqual(playlist_names.record(["37i9dQZF1EJvVqNQX8McwH"],
+                                               fetch=lambda _: None), [])
+
+    def test_lookup_failure_does_not_raise(self):
+        def broken(_):
+            raise OSError("network down")
+        rows = playlist_names.record(["a", "b"], fetch=lambda i: broken(i) if i == "a" else "B")
+        self.assertEqual([row["id"] for row in rows], ["b"])
 
 
 if __name__ == "__main__":
