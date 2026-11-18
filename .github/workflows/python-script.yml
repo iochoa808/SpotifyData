@@ -1,11 +1,18 @@
-name: Run Python Script and Upload CSVs
+name: Collect Listening History
+
+# Shown per run in the Actions list. It is fixed when the run is triggered, so it
+# can say where the run came from but not what it collected; the play count is
+# in the commit message and the run summary instead.
+run-name: >-
+  Collect plays · ${{ github.event_name == 'repository_dispatch' && 'cron-job.org'
+  || github.event_name == 'schedule' && 'GitHub schedule'
+  || 'manual' }}
 
 on:
   workflow_dispatch:
 
-  # Triggered from outside GitHub, which is the only way to get a dependable
-  # interval. See "External scheduler" in the README for the POST that fires
-  # it. GitHub's own scheduler drops most triggers on public repos, and the
+  # Fired every 30 minutes by cron-job.org, the only way to get a dependable
+  # interval. See "External scheduler" in the README for the exact setup. GitHub's own scheduler drops most triggers on public repos, and the
   # gap between runs is the only protection against Spotify's ~50-play
   # retention ceiling.
   repository_dispatch:
@@ -80,7 +87,8 @@ jobs:
       - name: Run Tests
         run: python -m unittest discover -s tests
 
-      - name: Execute Python Script
+      - name: Collect Plays
+        id: collect
         env:
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
@@ -91,6 +99,7 @@ jobs:
         id: commit
         env:
           BRANCH: ${{ github.ref_name }}
+          PLAYS: ${{ steps.collect.outputs.plays }}
         run: |
           set -euo pipefail
 
@@ -104,7 +113,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add ./data/*.csv
-          git commit -m "Updated CSV files"
+          # A run can change data without a new play (e.g. a playlist renamed).
+          case "${PLAYS:-0}" in
+            0) message="Update metadata, no new plays" ;;
+            1) message="Collect 1 play" ;;
+            *) message="Collect ${PLAYS} plays" ;;
+          esac
+          git commit -m "$message"
 
           # Rebase onto whatever landed while this run was collecting, and retry:
           # a push that loses a race must not discard the run's data. Both refs

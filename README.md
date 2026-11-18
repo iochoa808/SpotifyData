@@ -180,8 +180,10 @@ came back. A fresh export would close those three days.
 
 Two workflows:
 
-- **`python-script.yml`** — hourly collection. Runs the tests, collects, then
-  commits and pushes with a concurrency guard and rebase-and-retry. **Raises a
+- **`python-script.yml`** ("Collect Listening History") — collection every 30
+  minutes, fired by cron-job.org with GitHub's own schedule as a backup. Runs
+  the tests, collects, then commits and pushes with a concurrency guard and
+  rebase-and-retry. **Raises a
   GitHub issue on failure**, which is the lesson of the 2026 outage: the broken
   token cost one click to fix, while the 98 days of unnoticed silence cost
   history that cannot be recovered.
@@ -192,6 +194,14 @@ Two workflows:
 Scheduled workflows are disabled by GitHub after 60 days without repository
 activity. Successful runs commit, and commits reset that timer, so this only
 becomes a problem once collection is already broken.
+
+**Reading the Actions list.** Each run is titled by what triggered it —
+`Collect plays · cron-job.org`, `· GitHub schedule` or `· manual`. The title is
+fixed before the run starts, so the number of plays collected is shown instead
+on the run's summary page ("12 new plays collected") and in its commit message:
+`Collect 12 plays`, or `Update metadata, no new plays` when only a song,
+album or playlist name changed. Runs with nothing new make no commit. Commits
+before 18 November 2026 are all titled `Updated CSV files`.
 
 ### The schedule is not reliable, and that costs plays
 
@@ -213,8 +223,13 @@ Against this account's own history:
 This is not theoretical: **65 commits in the history added exactly 45–60 plays**,
 which is the signature of a full window with older plays already scrolled out.
 
-Four cron entries across the hour improve the odds and nothing more. A
-dependable interval has to come from outside Actions.
+Four cron entries across the hour improve the odds and nothing more. Measured
+over 7–18 November 2026 against the single 2-hourly entry in August, they fired
+more runs (14.4 a day against 8.4) but in bursts of 2–4 within half an hour,
+so the gap that matters — between bursts — *grew*, from a median of 2.2 hours
+to 3.9. After a stall the scheduler fires the overdue entries back to back; the
+extra entries only add runs that find nothing new. A dependable interval has to
+come from outside Actions, which is what the external scheduler below provides.
 
 ### External scheduler
 
@@ -254,10 +269,47 @@ scheduler's secret field, never in the repo, and never in a commit. An expired
 token fails closed — collection falls back to GitHub's unreliable schedule
 rather than breaking — so renewal is the thing to watch.
 
-**The scheduler.** Anything that can POST on a timer works. A hosted cron
-service (cron-job.org and similar) needs: the URL above, method `POST`, the
-three headers, the JSON body, and an interval of 30 minutes or better. Keep it
-under two hours; the table above is why.
+Run the script from an ordinary terminal, with a leading space so the token
+stays out of shell history — not through an AI assistant or anything that logs
+the command.
+
+**The scheduler: cron-job.org.** Live since 18 November 2026; the first
+dispatched run was at 16:45 UTC. The cronjob at <https://cron-job.org> is set
+up as:
+
+| Field | Value |
+|---|---|
+| URL | `https://api.github.com/repos/iochoa808/SpotifyData/dispatches` |
+| Schedule | Every 30 minutes |
+| Request method | `POST` |
+| Header | `Accept: application/vnd.github+json` |
+| Header | `Authorization: Bearer github_pat_...` (the token above) |
+| Header | `X-GitHub-Api-Version: 2022-11-28` |
+| Header | `Content-Type: application/json` |
+| Request body | `{"event_type":"collect"}` |
+| Notifications | On failed execution — success is **HTTP 204** |
+
+Its runs show in Actions as `Collect plays · cron-job.org`, with event
+`repository_dispatch`. Thirty minutes is well inside the two-hour limit from the
+table above. Runs that overlap queue rather than cancel (the concurrency group),
+a run with nothing new is a no-op, and Actions minutes are free on a public
+repository, so the interval costs nothing.
+
+**When something goes wrong:**
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| cron-job.org reports 401 or 403 | Token expired or revoked | Make a new token as above, test it with the script, paste it into the `Authorization` header |
+| cron-job.org reports 404 | Repo renamed, or token lost access to it | Fix the URL, or the token's repository access |
+| cron-job.org reports 422 | No `collect` dispatch trigger on `main` | Restore `repository_dispatch: types: [collect]` in the workflow |
+| 204, but the run fails | Collector problem, not the trigger | The `collector-down` issue links the failing run |
+| No `cron-job.org` runs at all | Job disabled — cron-job.org pauses jobs after repeated failures | Re-enable it in the cron-job.org dashboard |
+
+GitHub's own `schedule` stays in the workflow as a backup, so a broken trigger
+slows collection down rather than stopping it.
+
+Any other service that can POST on a timer works the same way: the URL, method
+`POST`, the headers and the body above, at an interval of 30 minutes or better.
 
 A local timer is the alternative if this machine is usually on, and needs no
 token at all — it can run `src/main.py` directly and push. Both sources can
