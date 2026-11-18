@@ -10,7 +10,7 @@ removes expired mixes — so a lookup made later cannot say what a playlist was
 called when it was played. The file is therefore a log, not a table: a row is
 appended whenever an ID is new or its name differs from the last one recorded.
 Join a play to the row with the same id and the latest fetched_at at or before
-it (or simply the nearest one; the collector fetches within the hour).
+it (or simply the nearest one; the collector runs every 30 minutes).
 """
 import csv
 import json

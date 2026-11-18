@@ -2,12 +2,12 @@ name: Publish Database
 
 # Deliberately separate from the collector. Building the database takes a few
 # seconds and is pure derivation from the committed CSVs, so there is no reason
-# to put it on the hourly path and risk slowing or breaking collection — the
+# to put it on the collection path and risk slowing or breaking collection — the
 # one job in this repository that loses data when it fails.
 on:
   workflow_dispatch:
   schedule:
-    # Sundays at 05:10 UTC, off the collector's :25 slot.
+    # Sundays at 05:10 UTC, between the collector's cron entries (:07, :22, ...).
     - cron: "10 5 * * 0"
 
 permissions:

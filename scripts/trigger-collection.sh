@@ -3,9 +3,10 @@
 #
 #   GITHUB_PAT=github_pat_... ./scripts/trigger-collection.sh
 #
-# This is what an external scheduler calls on a timer. GitHub's own scheduler
-# is best-effort and drops most triggers on public repos: it fires 4-5 times a
-# day whatever the cron says, and once went quiet for 16 hours. Since Spotify
+# cron-job.org sends this same request every 30 minutes (see "External
+# scheduler" in the README); run the script by hand to fire a collection or to
+# test a new token. GitHub's own scheduler is best-effort: it fires when it
+# likes, in bursts, and once went quiet for 16 hours. Since Spotify
 # retains only ~50 recent plays and this account's busiest 3-hour window holds
 # 64, a dependable interval is the only thing preventing permanent loss.
 #

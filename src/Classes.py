@@ -273,8 +273,8 @@ class RecentlyPlayedSongs:
         Measured against the live API: Spotify retains roughly 50 plays and no
         more. Asking for a week returns one page of 50 and an empty second page,
         so the cursor does NOT lift that ceiling — only a shorter polling
-        interval does, which is why the schedule now runs hourly (the busiest
-        2-hour window on record held 44 plays, uncomfortably close to 50).
+        interval does, which is why collection runs every 30 minutes (the
+        busiest 2-hour window on record held 47 plays, close to 50).
 
         What the cursor does buy: `after` is exclusive, so a run sees only
         genuinely new plays instead of re-examining the same 50 every time, the

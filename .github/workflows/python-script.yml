@@ -27,21 +27,19 @@ on:
     # commits in the record already added exactly 45-60, the signature of a
     # full window.
     #
-    # GitHub's scheduler is best-effort and drops most triggers on public
-    # repos. It fires roughly 4-5 times a day however often it is asked, and
-    # on 2 November it went quiet for nearly 16 hours before resuming on its
-    # own — against a historical worst gap of 7.9h. Nothing was wrong: the
-    # workflow was active, GitHub reported no incident, and the run that broke
-    # the silence fired from the ":37" entry below.
+    # Since 2026-11-18 the interval comes from cron-job.org (repository_dispatch
+    # above). These entries are only the backup for when that trigger breaks.
     #
-    # Four entries across the hour therefore stay: they cost nothing, ask at
-    # four points instead of one, and a run with nothing new is a no-op
-    # because of the `after` cursor. The concurrency group serialises any
-    # overlap.
-    #
-    # This improves the odds; it cannot fix the cause. The scheduler is not
-    # controllable from inside Actions, so closing the gap reliably needs an
-    # external trigger. workflow_dispatch is the dependable manual path.
+    # GitHub's scheduler is best-effort and fires when it likes: 4-5 times a
+    # day from one hourly entry (27 Oct - 2 Nov), and on 2 November it went
+    # quiet for nearly 16 hours with the workflow active and no GitHub
+    # incident. Four entries across the hour did not fix that — after a stall
+    # the overdue entries fire back to back, so runs arrive in bursts and the
+    # median gap between bursts was 3.9h (7-18 Nov), worse than August's 2.2h
+    # from a single 2-hourly entry. They stay because they cost nothing: a run
+    # with nothing new is a no-op thanks to the `after` cursor, and the
+    # concurrency group serialises any overlap. workflow_dispatch is the
+    # manual path.
     - cron: "7 * * * *"
     - cron: "22 * * * *"
     - cron: "37 * * * *"
