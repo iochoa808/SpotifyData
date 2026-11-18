@@ -229,3 +229,20 @@ class TestPlaylistNames(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestContextId(unittest.TestCase):
+    """A play's context URI must reduce to the bare ID spotipy accepts.
+
+    The legacy user-scoped playlist URI used to yield the username, which
+    crashed every run for ~27 hours in November 2026.
+    """
+
+    def test_standard_shapes(self):
+        for kind in ("playlist", "album", "artist"):
+            self.assertEqual(utils.contextId(f"spotify:{kind}:7xlNAn0e6pYjySs67RtkXb"),
+                             "7xlNAn0e6pYjySs67RtkXb")
+
+    def test_legacy_user_playlist_returns_playlist_not_username(self):
+        self.assertEqual(utils.contextId("spotify:user:some.user_name:playlist:7xlNAn0e6pYjySs67RtkXb"),
+                         "7xlNAn0e6pYjySs67RtkXb")

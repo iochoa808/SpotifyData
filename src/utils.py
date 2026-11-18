@@ -6,6 +6,21 @@ GITHUB_PATH = './data'
 LOCAL_PATH = os.path.join(os.path.dirname(__file__), '..', 'data')
 
 
+def contextId(uri):
+    """Bare ID from a play's context URI.
+
+    Usually `spotify:<type>:<id>`, but playlists can still arrive in the legacy
+    user-scoped form `spotify:user:<username>:playlist:<id>`. Taking segment 2
+    returned the username for those, and a username with a `.` or `_` made
+    spotipy reject it: that crashed every run from 2026-11-15 16:56 to
+    2026-11-16 20:16 UTC, until the play left Spotify's 50-play window.
+    """
+    parts = uri.split(':')
+    if len(parts) == 5 and parts[1] == 'user' and parts[3] == 'playlist':
+        return parts[4]
+    return parts[2]
+
+
 # Utility function to split a list into batches
 def batch(iterable, n=20):
     it = iter(iterable)

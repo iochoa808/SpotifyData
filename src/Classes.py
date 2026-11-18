@@ -1,4 +1,5 @@
 from Spotify import sp
+import spotipy
 import ReadWrite as rw
 import playlist_names
 import utils
@@ -307,7 +308,7 @@ class RecentlyPlayedSongs:
             {
                 **song,
                 'context': {'type': 'playlist', 'uri': Playlist.likedSongs} if not song['context'] else
-                {'type': song['context']['type'], 'uri': song['context']['uri'].split(':')[2]},
+                {'type': song['context']['type'], 'uri': utils.contextId(song['context']['uri'])},
                 'id': utils.toTimestamp(song['played_at'])
             }
             for song in recently_played
@@ -328,8 +329,16 @@ class RecentlyPlayedSongs:
          for album in sp.albums(batch_ids)['albums']]
         [Artist.store(artist) for batch_ids in utils.batch(artist_ids, 50)
          for artist in sp.artists(batch_ids)['artists']]
-        [Playlist.store(sp.playlist(playlist))
-         for playlist in playlist_ids if playlist != Playlist.likedSongs]
+        # One playlist that can't be fetched (deleted, private, odd URI) must not
+        # abort the run: the plays below would never be stored, the cursor would
+        # never advance, and every later run would crash on the same play.
+        for playlist in playlist_ids:
+            if playlist == Playlist.likedSongs:
+                continue
+            try:
+                Playlist.store(sp.playlist(playlist))
+            except spotipy.SpotifyException as error:
+                print(f"Could not store playlist {playlist}: {error}")
 
         new_played = [song for song in (PlayedSong.store(item) for item in recently_played) if song is not None]
 
