@@ -152,6 +152,16 @@ CREATE TABLE plays (
     context_id       TEXT                -- no FK: polymorphic, see above
 );
 
+-- Context inferred for an imported play from the collected plays either side
+-- of it (src/infer_context.py). Kept apart from plays, which holds only what
+-- the API observed; evidence says whether the track was confirmed to belong.
+CREATE TABLE inferred_contexts (
+    played_at    INTEGER PRIMARY KEY REFERENCES plays(played_at),
+    context_type TEXT NOT NULL,
+    context_id   TEXT NOT NULL,
+    evidence     TEXT NOT NULL
+);
+
 CREATE INDEX idx_plays_track      ON plays(track_id);
 CREATE INDEX idx_plays_context    ON plays(context_type, context_id);
 CREATE INDEX idx_songs_album      ON songs(album_id);
@@ -182,29 +192,37 @@ SELECT p.played_at,
        s.duration_ms,
        s.explicit,
        p.track_popularity,
-       p.context_type,
-       p.context_id,
+       COALESCE(p.context_type, ic.context_type)  AS context_type,
+       COALESCE(p.context_id, ic.context_id)      AS context_id,
+       -- 'api' when observed, 'inferred' when bridged from the neighbouring
+       -- plays (see context_evidence), NULL when unknown.
+       CASE WHEN p.context_type IS NOT NULL THEN 'api'
+            WHEN ic.played_at IS NOT NULL THEN 'inferred' END AS context_source,
+       ic.evidence                                 AS context_evidence,
        -- A stored playlist's name, otherwise the Spotify playlist name looked
        -- up nearest to the play. Names fetched for the backfill on 2026-11-06
        -- are today's, so for older plays they are a best guess.
-       CASE WHEN p.context_type = 'playlist' THEN COALESCE(
-           (SELECT pl.name FROM playlists pl WHERE pl.id = p.context_id),
+       CASE WHEN COALESCE(p.context_type, ic.context_type) = 'playlist' THEN COALESCE(
+           (SELECT pl.name FROM playlists pl WHERE pl.id = COALESCE(p.context_id, ic.context_id)),
            -- SQLite cannot see p from a subquery's ORDER BY, hence the
            -- min() comparison; a tie goes to the later name.
            (SELECT n.name FROM spotify_playlist_names n
-             WHERE n.playlist_id = p.context_id
+             WHERE n.playlist_id = COALESCE(p.context_id, ic.context_id)
                AND abs(n.fetched_at - p.played_at) =
                    (SELECT min(abs(m.fetched_at - p.played_at))
                       FROM spotify_playlist_names m
-                     WHERE m.playlist_id = p.context_id)
+                     WHERE m.playlist_id = COALESCE(p.context_id, ic.context_id))
              ORDER BY n.fetched_at DESC LIMIT 1))
        END                                         AS playlist_name,
        -- Where the row came from. The bulk export carries no playlist context
-       -- and no popularity at play time, so an absent context_type marks an
-       -- imported play; analyses that depend on either field should filter on
-       -- this rather than silently averaging the two regimes together.
+       -- and no popularity at play time, so an absent observed context_type
+       -- marks an imported play; analyses that depend on either field should
+       -- filter on this (or on context_source) rather than silently averaging
+       -- the regimes together.
        CASE WHEN p.context_type IS NULL THEN 'import' ELSE 'api' END AS source
 FROM plays p
+LEFT JOIN inferred_contexts ic ON ic.played_at = p.played_at
+                              AND p.context_type IS NULL
 JOIN songs s       ON s.id = p.track_id
 LEFT JOIN albums al ON al.id = s.album_id;
 """
@@ -217,11 +235,13 @@ TABLE_SOURCE = {
     "playlists": "playlists",
     "plays": "recently_played",
     "spotify_playlist_names": "spotify_playlists",
+    "inferred_contexts": "inferred_contexts",
 }
 
 # Sources that may legitimately be absent: the collector writes
-# spotify_playlists.csv only once it has seen one of Spotify's playlists.
-OPTIONAL_SOURCES = {"spotify_playlists"}
+# spotify_playlists.csv only once it has seen one of Spotify's playlists, and
+# inferred_contexts.csv exists only once infer_context.py has run.
+OPTIONAL_SOURCES = {"spotify_playlists", "inferred_contexts"}
 
 
 def connect(db_path=DEFAULT_DB):
@@ -345,6 +365,12 @@ def populate(conn, data_dir=DEFAULT_DATA):
            (playlist_id, name, fetched_at) VALUES (?, ?, ?)""",
         [(r["id"], r["name"], as_int(r["fetched_at"]))
          for r in read_csv(data_dir, "spotify_playlists")])
+
+    conn.executemany(
+        """INSERT OR IGNORE INTO inferred_contexts
+           (played_at, context_type, context_id, evidence) VALUES (?, ?, ?, ?)""",
+        [(as_int(r["id"]), r["context_type"], r["context_id"], r["evidence"])
+         for r in read_csv(data_dir, "inferred_contexts")])
 
     conn.commit()
 

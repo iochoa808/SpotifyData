@@ -89,6 +89,7 @@ class TestBuild(DatabaseTestCase):
             "albums", "album_artists", "album_tracks", "album_images",
             "songs", "song_artists",
             "playlists", "playlist_images", "plays", "spotify_playlist_names",
+            "inferred_contexts",
         })
         views = {r[0] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='view'")}
@@ -232,6 +233,57 @@ class TestViews(DatabaseTestCase):
         # Both have two plays, so the a.name tiebreak decides the order.
         self.assertEqual([(r[0], r[1]) for r in rows],
                          [("Remi Wolf", 2), ("Vulfpeck", 2)])
+
+
+class TestInferredContexts(DatabaseTestCase):
+    """An imported play between two collected ones, with an inferred context."""
+
+    def setUp(self):
+        super().setUp()
+        write_fixture(self.data, {
+            "recently_played": FIXTURE["recently_played"]
+            + "1700000600,Darwin Derby,sng1,,,\n"     # imported, inferred below
+            + "1700000800,Lonely Town,sng2,,,\n",     # imported, nothing known
+            "inferred_contexts": (
+                "id,context_type,context_id,evidence\n"
+                "1700000600,playlist,pl1,in_playlist\n"
+            ),
+        })
+        self.build()
+        self.conn = db.connect(self.db)
+        self.addCleanup(self.conn.close)
+
+    def row(self, played_at):
+        return self.conn.execute(
+            "SELECT * FROM plays_detail WHERE played_at=?", (played_at,)).fetchone()
+
+    def test_inferred_context_shows_in_plays_detail(self):
+        row = self.row(1700000600)
+        self.assertEqual((row["context_type"], row["context_id"]), ("playlist", "pl1"))
+        self.assertEqual(row["context_source"], "inferred")
+        self.assertEqual(row["context_evidence"], "in_playlist")
+        self.assertEqual(row["playlist_name"], "Funk")
+
+    def test_an_inferred_play_is_still_an_import(self):
+        # Popularity is still missing, so source must not move.
+        self.assertEqual(self.row(1700000600)["source"], "import")
+
+    def test_observed_and_unknown_contexts(self):
+        self.assertEqual(self.row(1700000000)["context_source"], "api")
+        self.assertIsNone(self.row(1700000000)["context_evidence"])
+        self.assertIsNone(self.row(1700000800)["context_source"])
+        self.assertIsNone(self.row(1700000800)["context_type"])
+
+    def test_plays_holds_only_the_observed_context(self):
+        stored = self.conn.execute(
+            "SELECT context_type FROM plays WHERE played_at=1700000600").fetchone()[0]
+        self.assertIsNone(stored)
+
+    def test_an_inference_for_an_unknown_play_fails_the_build(self):
+        write_fixture(self.data, {"inferred_contexts": (
+            "id,context_type,context_id,evidence\n9,album,alb1,on_album\n")})
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.build()
 
 
 class TestFailureHandling(DatabaseTestCase):

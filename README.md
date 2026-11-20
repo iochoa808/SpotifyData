@@ -11,7 +11,7 @@ about 50 recent plays**. A heavy listening session fills that in two to three
 hours, and anything not collected by then is gone for good. That single fact
 drives most of the design decisions below.
 
-As of 20 November 2026: **57,419 plays** spanning **2024-12-14 to
+As of 20 November 2026: **57,412 plays** spanning **2024-12-14 to
 2026-11-20**.
 
 ## How it works
@@ -74,7 +74,7 @@ days in 2026.
 .venv/bin/python src/database.py build     # rebuild spotify.db from the CSVs
 .venv/bin/python src/database.py verify    # foreign keys + row counts vs CSVs
 .venv/bin/python src/database.py stats
-python3 -m unittest discover -s tests      # 82 tests, stdlib only, no credentials
+python3 -m unittest discover -s tests      # 156 tests, stdlib only, no credentials
 ```
 
 ## Data
@@ -89,6 +89,8 @@ python3 -m unittest discover -s tests      # 82 tests, stdlib only, no credentia
 | `artists.csv` | `id` | `genres`, `images` stringified lists |
 | `playlists.csv` | `id` | Spotify's own playlists (`37i9dQZ…`) are not stored; the API refuses them |
 | `spotify_playlists.csv` | `id` + `fetched_at` | names of Spotify's own playlists, a log — see below |
+| `inferred_contexts.csv` | `id` — a play's `id` | context inferred for imported plays, with evidence — see below |
+| `removed_plays.csv` | `id` | collected plays removed as API double-reports, whole, with the row kept and why — see below |
 
 File order is append order, not sorted — the last line is not reliably the
 newest play. Use `MAX(played_at)`.
@@ -125,13 +127,50 @@ in `src/database.py`:
 
 | Source | Plays | Has context | Has popularity |
 |---|---|---|---|
-| `api` | 52,102 | yes | yes |
-| `import` | 5,317 | no | no |
+| `api` | 51,369 | yes | yes |
+| `import` | 6,043 | 495 inferred | no |
 
 Plays recovered from a bulk export have no playlist context and no popularity
-at play time, so both columns are empty rather than guessed. **Any analysis
-that uses context or popularity should filter on `source`** instead of
-averaging the two regimes together.
+at play time, so in `recently_played.csv` both columns are empty rather than
+guessed. **Any analysis that uses context or popularity should filter on
+`source`** instead of averaging the two regimes together.
+
+### Inferred context: `plays_detail.context_source`
+
+Most imported plays from inside the collection period sit in the middle of a
+session the collector did see. `src/infer_context.py` gives such a play the
+context of its neighbours when the collected plays on both sides share one and
+no two plays between them are more than 30 minutes apart. The inferences go to
+`inferred_contexts.csv`, never into `recently_played.csv`, and `plays_detail`
+shows them next to the observed ones:
+
+| `context_source` | Plays | Meaning |
+|---|---|---|
+| `api` | 51,369 | observed by the collector |
+| `inferred` | 495 | bridged from the neighbouring plays |
+| *null* | 5,548 | unknown; almost all the 98-day outage |
+
+The rule was tested before it was trusted, by hiding each collected play that
+sits between two same-context neighbours and asking the rule for it: of about
+41,000, it named the context the API had recorded **99.5%** of the time.
+
+Each row also records whether the track was confirmed to belong to the context
+(`context_evidence`: `on_album`, `by_artist`, `in_playlist` with an `added_at`
+before the play, or a failure such as `not_in_playlist`, or `unverifiable` for
+Spotify's own playlists and Liked Songs, which this app cannot read). That check
+is evidence, not a filter, because the same test showed it is a poor one. The
+API's context is where a session started, not where the track lives: autoplay
+after an album keeps the album, and a track since removed from a playlist was
+still played from it. Only 37% of collected plays are on their context album's
+track list, and 81% are in their context playlist today. Requiring membership
+would reject far more right answers than wrong ones. Imported plays pass at the
+same rates (31% and 84%), a sign that they come from the same kind of session.
+`--strict` keeps only confirmed rows if that trade is wanted.
+
+Of the 495 (as of 20 November 2026): 196 confirmed, 223 unverifiable
+(Spotify's own playlists), 76 not confirmed. Pruning an imported play also
+drops its inferred context. Otherwise the file is append-only: membership is read as it stands today, so a
+re-run only adds plays not yet inferred, and never revisits an earlier answer.
 
 ## Backfilling from a Spotify export
 
@@ -147,10 +186,44 @@ takes a few weeks and is *not* the fast basic export, which lacks track IDs).
 Rules it follows, all for the sake of keeping imported plays comparable to
 collected ones:
 
+- **The pieces of one listen become one play.** A listen that was paused, handed
+  to another device, or cut off by the app closing and then resumed appears in
+  the export as one segment per piece. The importer groups each track's
+  segments into listens by the rule `dedupe_plays.py` applies to collected
+  plays (`group_listens`): a pause of more than five minutes starts a new
+  listen, and so does hearing the track again (segments adding up to 1.6 track
+  lengths). Each listen is imported once, at its first piece's timestamp; the
+  collector keeps the earliest row of a doubled play too. The rules below
+  judge the whole listen: its pieces' time added up, skipped or not run to its
+  end only as its last piece was. Grouping needs each track's length. A real
+  run looks up tracks the archive does not have, without storing them, but a
+  dry run cannot, so a dry run's counts can be slightly higher.
 - Plays under 30s are dropped; the API only ever reported plays past that.
-- Deduplication allows 15 seconds of drift. The export's `ts` and the API's
-  `played_at` were verified to mean the same thing, agreeing exactly for most
-  of 50,212 cross-checked plays and within 3 seconds for the rest.
+- Skipped plays are dropped (`--include-skipped` keeps them). The export flags
+  them, and the API almost never reports one, even past 30s. Measured over the
+  collection period, it reported 98% of plays that ran to their end and 97% of
+  those handed to another device, but 4% of those skipped with the next or back
+  button and 27% of those cut short by starting something else.
+- `--whole-only` keeps only listens that ran to their end. It is for periods
+  the collector was running, where a play the API left out because it was cut
+  off is not a play the collector missed.
+- `--prune` applies the same rules backwards. It removes already-imported plays
+  that a fresh import would not produce: ones that fail the rules, later pieces
+  of a listen (`merged_into_listen`), and pieces of a listen the collector has
+  (`already_collected`). It matches each row to its export record exactly,
+  refuses to touch a collected play, and drops any inferred context of a
+  removed play. Run the importer afterwards: where a listen's first piece was
+  never imported, it adds that one in place of the pruned piece.
+- Private-session plays are never imported. The API is not told about them, by
+  the account holder's choice, and this repository is public.
+- An export record and an archived play of the same track count as the same
+  play within **120 seconds**, paired **one to one**, closest first. The two
+  timestamps mean the same thing but do not always agree: most match within a
+  few seconds, but from May 2025 to May 2026, 11–36% a month ran 5–60 seconds
+  apart, the API later. The old 15-second rule took about 6,800
+  already-collected plays for new ones. A wide window is safe because pairing
+  is one to one: a genuine repeat has an export record of its own, which claims
+  its own row.
 - A timestamp already owned by a different track is skipped and reported, never
   nudged — `played_at` is the primary key, and moving one invents a play time.
 - `--since` and `--until` take a time as well as a day
@@ -163,8 +236,8 @@ collected ones:
 
 > **The export contains an IP address, device platform and country for every
 > play, and this repository is public.** The zip is gitignored and only the
-> timestamp, track id, track name and `ms_played` are ever read from it. Keep it
-> that way.
+> timestamp, track id, track name, `ms_played`, `reason_end` and the
+> private-session flag are ever read from it. Keep it that way.
 
 ### Not done: nine years of pre-2024 history
 
@@ -208,6 +281,62 @@ to 18 November), each window bounded by the plays on either side of it:
 - **13 November 23:37 – 16 November 15:21 UTC**, the November outage: **48
   plays**, all from 15 November 16:01 onward. The day and a half before that
   had no listening at all, so nothing was lost there.
+
+The same export also held **979 plays that ran to their end** which the
+collector never got, from inside periods when it was running: plays the API did
+not report even though the collector ran on either side of them. They were
+imported the same day. The 98-day backfill, made before skipped plays were
+excluded, was cleaned of its **206 skipped plays**, plus 4 from the October
+gap. Once the importer merged pieces, the backfills were pruned again: 106
+plays came out (87 later pieces of a listen, 15 listens that ended in a skip,
+4 pieces of collected listens), and 63 went back in (45 first pieces in the
+98-day window, and 18 whole listens in pieces from the collection period):
+
+```bash
+.venv/bin/python src/import_history.py --prune
+.venv/bin/python src/import_history.py --since 2026-07-20 --until 2026-10-27
+.venv/bin/python src/import_history.py --since 2026-11-13T23:37 --until 2026-11-16T15:22
+.venv/bin/python src/import_history.py --since 2024-12-14T01:55 --until 2026-11-19 --whole-only
+.venv/bin/python src/infer_context.py
+```
+
+Left out on purpose: about 830 listens from periods the collector was running
+that were cut off and never resumed, mostly by the app closing (`logout`).
+They are not skipped, but the API reports only 42% of such plays, so they are
+treated as the API's own omissions rather than plays the collector missed.
+
+### Plays the API reported twice
+
+The API sometimes returns one listen as several plays: the same track, closer
+together than the track is long, all in one response. There were 765 such
+pairs, in chains of up to six rows, mostly from May 2025 to May 2026. The
+export shows what happened behind each one. Most were one listen in pieces
+(paused, handed to another device, or the app closed, then resumed; the API
+logged each piece), or a single short segment, likely jumping ahead in a track
+already playing. 17 have no export record at all, such as one track four times
+in six seconds. A few were real repeats, the track heard twice in a row with
+its timestamps squeezed together by the API's drift.
+
+`src/dedupe_plays.py` keeps as many rows of a chain as the export shows
+listens, the earliest first, and removes the rest. A chain counts as a
+separate listen per time the track was heard (the segments add up to 1.6 track
+lengths for two), or per pause between pieces longer than five minutes:
+
+```bash
+.venv/bin/python src/dedupe_plays.py --dry-run
+```
+
+On 20 November 2026 it removed **736 plays**. It kept the real repeats as
+repeats and 8 listens split across a pause of over five minutes as two plays
+each. Removed rows go to `removed_plays.csv` whole, with the row kept in
+their place and the reason, so every removal can be audited or undone. The
+importer reads that file too, so the export segments those rows stood for stay
+claimed and a later import cannot bring them back. A re-run removes nothing
+new: chains are rebuilt with the removed rows in place and judged on the same
+evidence every time.
+
+The importer applies the same rule to plays it imports (see *Backfilling*), so
+collected and imported periods count a listen in pieces the same way.
 
 ## Operations
 
@@ -374,10 +503,12 @@ src/playlist_names.py    names of Spotify's own playlists, via oEmbed
 src/database.py          schema and builder for the derived database
 src/auth_catch.py        one-shot refresh-token minter
 src/import_history.py    backfill from a GDPR export
+src/infer_context.py     context for imported plays, from their neighbours
+src/dedupe_plays.py      remove plays the API reported twice
 src/migrate_data0.py     one-shot import of the original 2024 schema
 scripts/trigger-collection.sh  fire the collector by hand, or test a token
 .github/workflows/       collection and the weekly database build
-tests/                   82 stdlib-only tests
+tests/                   156 stdlib-only tests
 data/                    the CSVs — system of record
 data0/                   the original schema, fully migrated into data/
 ```
