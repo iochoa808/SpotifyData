@@ -42,6 +42,14 @@ class TestParsing(unittest.TestCase):
     def test_parses_day_boundaries(self):
         self.assertEqual(ih.parse_day("1970-01-02"), 86400)
 
+    def test_window_bounds_accept_a_time(self):
+        self.assertEqual(ih.parse_day("1970-01-02T01:30"), 86400 + 5400)
+        self.assertEqual(ih.parse_day("1970-01-02 01:30"), 86400 + 5400)
+
+    def test_window_bounds_reject_junk(self):
+        with self.assertRaises(ValueError):
+            ih.parse_day("2 Jan 1970")
+
 
 class TestSelect(unittest.TestCase):
     """records are (timestamp, track_id, ms_played, name)."""
@@ -142,6 +150,25 @@ class TestSelect(unittest.TestCase):
                                     None, None, 30000,
                                     [play(1784532876, "trk1")])
         self.assertEqual(chosen, [])
+
+
+class TestAppendPlays(unittest.TestCase):
+    def append_to(self, existing):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "recently_played.csv"
+            path.write_bytes(existing)
+            ih.append_plays([{"id": 3, "name": "C", "track_id": "t3",
+                              "track_popularity": "", "context_type": "",
+                              "context_id": ""}], path)
+            return path.read_bytes()
+
+    def test_leaves_existing_crlf_rows_untouched(self):
+        existing = b"id,name\n1,A\r\n2,B\r\n"
+        self.assertEqual(self.append_to(existing), existing + b"3,C,t3,,,\n")
+
+    def test_terminates_an_unterminated_last_line(self):
+        self.assertEqual(self.append_to(b"id,name\n1,A"),
+                         b"id,name\n1,A\n3,C,t3,,,\n")
 
 
 class TestReadExport(unittest.TestCase):

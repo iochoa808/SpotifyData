@@ -11,8 +11,8 @@ about 50 recent plays**. A heavy listening session fills that in two to three
 hours, and anything not collected by then is gone for good. That single fact
 drives most of the design decisions below.
 
-As of 18 November 2026: **57,203 plays** spanning **2024-12-14 to
-2026-11-18**.
+As of 20 November 2026: **57,419 plays** spanning **2024-12-14 to
+2026-11-20**.
 
 ## How it works
 
@@ -74,7 +74,7 @@ days in 2026.
 .venv/bin/python src/database.py build     # rebuild spotify.db from the CSVs
 .venv/bin/python src/database.py verify    # foreign keys + row counts vs CSVs
 .venv/bin/python src/database.py stats
-python3 -m unittest discover -s tests      # 78 tests, stdlib only, no credentials
+python3 -m unittest discover -s tests      # 82 tests, stdlib only, no credentials
 ```
 
 ## Data
@@ -125,8 +125,8 @@ in `src/database.py`:
 
 | Source | Plays | Has context | Has popularity |
 |---|---|---|---|
-| `api` | 52,012 | yes | yes |
-| `import` | 5,191 | no | no |
+| `api` | 52,102 | yes | yes |
+| `import` | 5,317 | no | no |
 
 Plays recovered from a bulk export have no playlist context and no popularity
 at play time, so both columns are empty rather than guessed. **Any analysis
@@ -153,6 +153,13 @@ collected ones:
   of 50,212 cross-checked plays and within 3 seconds for the rest.
 - A timestamp already owned by a different track is skipped and reported, never
   nudged — `played_at` is the primary key, and moving one invents a play time.
+- `--since` and `--until` take a time as well as a day
+  (`2026-10-23T21:15`). Filling a gap needs that: widened to whole days, the
+  window also takes in the edge days' plays that the collector saw and did not
+  record, mostly skipped tracks.
+- New rows are appended without rewriting the file. The CSV mixes line
+  endings, because the collector writes CRLF, and rewriting it would
+  normalise them all.
 
 > **The export contains an IP address, device platform and country for every
 > play, and this repository is public.** The zip is gitignored and only the
@@ -187,14 +194,20 @@ The repaired 2026 outage was different: that was 90 days of genuinely missing
 rows inside the collection period, so filling it restored the record rather than
 redefining it.
 
-A smaller, clearly worthwhile version of this remains open. Two gaps inside the
-collection period are still empty, and a fresh export would close both:
+The two gaps the first export left inside the collection period were filled on
+20 November 2026 from a second export (generated 20 November, covering plays up
+to 18 November), each window bounded by the plays on either side of it:
 
-- **23 October 21:15 – 26 October 13:01 UTC** — after the export was generated,
-  before the collector came back.
-- **13 November 23:37 – 16 November 15:21 UTC** — the November outage (see
-  *Outages* below). Some of this window may genuinely have no listening; the
-  plays lost are those from about 15 November afternoon onward.
+```bash
+.venv/bin/python src/import_history.py --since 2026-10-23T21:15 --until 2026-10-26T13:02
+.venv/bin/python src/import_history.py --since 2026-11-13T23:37 --until 2026-11-16T15:22
+```
+
+- **23 October 21:15 – 26 October 13:01 UTC**, after the first export was
+  generated and before the collector came back: **78 plays**.
+- **13 November 23:37 – 16 November 15:21 UTC**, the November outage: **48
+  plays**, all from 15 November 16:01 onward. The day and a half before that
+  had no listening at all, so nothing was lost there.
 
 ## Operations
 
@@ -342,7 +355,7 @@ duplicates, because `played_at` is the primary key and the CSVs merge as text.
 | When (UTC) | Cause | Cost | Fixed by |
 |---|---|---|---|
 | 2026-07-20 → 2026-10-27 | Spotify revoked `REFRESH_TOKEN`; every run failed for 98 days unnoticed, until GitHub disabled the schedule | ~3 months, mostly backfilled from an export | A new token, and the `collector-down` alarm issue |
-| 2026-11-15 16:56 → 2026-11-16 20:16 | A play whose playlist context came as the legacy `spotify:user:<name>:playlist:<id>` URI. The ID was read as segment 2 — the username — which spotipy rejected, crashing before anything was stored; every run then hit the same play until it left the 50-play window | Plays from ~15 Nov afternoon to 16 Nov 15:21 | `utils.contextId()` handles both URI shapes, and a playlist that cannot be fetched is logged and skipped instead of aborting the run |
+| 2026-11-15 16:56 → 2026-11-16 20:16 | A play whose playlist context came as the legacy `spotify:user:<name>:playlist:<id>` URI. The ID was read as segment 2 — the username — which spotipy rejected, crashing before anything was stored; every run then hit the same play until it left the 50-play window 48 plays, 15 Nov 16:01 to 16 Nov 15:08, since backfilled from an export | `utils.contextId()` handles both URI shapes, and a playlist that cannot be fetched is logged and skipped instead of aborting the run |
 
 The pattern in both: a failure that repeats on every run. Anything that stops
 a run before plays are stored also stops the cursor from moving, so the next run
@@ -364,7 +377,7 @@ src/import_history.py    backfill from a GDPR export
 src/migrate_data0.py     one-shot import of the original 2024 schema
 scripts/trigger-collection.sh  fire the collector by hand, or test a token
 .github/workflows/       collection and the weekly database build
-tests/                   78 stdlib-only tests
+tests/                   82 stdlib-only tests
 data/                    the CSVs — system of record
 data0/                   the original schema, fully migrated into data/
 ```

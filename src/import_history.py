@@ -88,8 +88,19 @@ def parse_ts(value):
 
 
 def parse_day(value):
-    return int(datetime.strptime(value, "%Y-%m-%d")
-               .replace(tzinfo=timezone.utc).timestamp())
+    """A window bound in UTC: a whole day, or a day and a time to the minute.
+
+    The time form exists for filling a gap exactly. A gap rarely starts or ends
+    on midnight, and widening it to whole days would also take in the edge days'
+    plays the collector saw and deliberately did not record.
+    """
+    for pattern in ("%Y-%m-%d", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M"):
+        try:
+            parsed = datetime.strptime(value, pattern)
+        except ValueError:
+            continue
+        return int(parsed.replace(tzinfo=timezone.utc).timestamp())
+    raise ValueError(f"expected YYYY-MM-DD or YYYY-MM-DDTHH:MM, got {value!r}")
 
 
 def read_current():
@@ -194,23 +205,32 @@ def fetch_missing_entities(track_ids):
     return stored
 
 
-def append_plays(rows):
-    path = CURRENT / "recently_played.csv"
-    text = path.read_text(encoding="utf-8")
-    if not text.endswith("\n"):
-        text += "\n"
-    buffer = io.StringIO()
-    writer = csv.DictWriter(buffer, fieldnames=PLAY_HEADER, lineterminator="\n")
-    for row in rows:
-        writer.writerow(row)
-    path.write_text(text + buffer.getvalue(), encoding="utf-8")
+def append_plays(rows, path=None):
+    """Append rows, leaving every existing byte alone.
+
+    The file mixes line endings (the collector's csv writer emits CRLF), so it
+    must never be read and rewritten in text mode, which would normalise them
+    and turn a 100-row import into a 1,000-line diff.
+    """
+    path = path or CURRENT / "recently_played.csv"
+    with open(path, "rb") as handle:
+        needs_newline = False
+        if handle.seek(0, io.SEEK_END) > 0:
+            handle.seek(-1, io.SEEK_END)
+            needs_newline = handle.read(1) != b"\n"
+    with open(path, "a", newline="", encoding="utf-8") as handle:
+        if needs_newline:
+            handle.write("\n")
+        writer = csv.DictWriter(handle, fieldnames=PLAY_HEADER, lineterminator="\n")
+        for row in rows:
+            writer.writerow(row)
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--zip", default="my_spotify_data.zip")
-    parser.add_argument("--since", help="inclusive, YYYY-MM-DD (UTC)")
-    parser.add_argument("--until", help="exclusive, YYYY-MM-DD (UTC)")
+    parser.add_argument("--since", help="inclusive, YYYY-MM-DD[THH:MM] (UTC)")
+    parser.add_argument("--until", help="exclusive, YYYY-MM-DD[THH:MM] (UTC)")
     parser.add_argument("--min-ms", type=int, default=30000)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
